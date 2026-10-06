@@ -34,7 +34,13 @@ class ApiService {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const message = errorData.message || `API Error: ${response.status} ${response.statusText}`;
+      let message = errorData.message || `API Error: ${response.status} ${response.statusText}`;
+      if (errorData.errors && typeof errorData.errors === 'object') {
+        const firstKey = Object.keys(errorData.errors)[0];
+        if (firstKey && Array.isArray(errorData.errors[firstKey]) && errorData.errors[firstKey].length > 0) {
+          message = errorData.errors[firstKey][0];
+        }
+      }
       const error = new Error(message) as any;
       error.status = response.status;
       error.errors = errorData.errors;
@@ -64,6 +70,16 @@ class ApiService {
       }
     },
     getUser: () => this.request<any>('/user'),
+    updateProfile: (data: { name?: string; email?: string; department?: string }) =>
+      this.request<any>('/user/profile', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    updatePassword: (data: { current_password: string; new_password: string; new_password_confirmation: string }) =>
+      this.request<{ message: string }>('/user/password', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   };
 
   // ================= Reverts =================

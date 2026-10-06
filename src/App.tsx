@@ -27,6 +27,7 @@ import {
 import toast, { Toaster } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import CommandPalette from './components/CommandPalette';
+import ProfileModal from './components/ProfileModal';
 import Dashboard from './pages/Dashboard';
 import Reverts from './pages/Reverts';
 import CalendarPage from './pages/CalendarPage';
@@ -54,6 +55,7 @@ function MainApp() {
   const [currentDateTime, setCurrentDateTime] = useState('');
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Global state for sharing between tabs
   const [reverts, setReverts] = useState(initialReverts);
@@ -354,6 +356,10 @@ function MainApp() {
           if (tab === 'campaigns' || tab === 'history') setIsDonationsOpen(true);
         }}
       />
+      <ProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)} 
+      />
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible">
         {/* Header */}
@@ -479,8 +485,8 @@ function MainApp() {
                     <div 
                       className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
                       onClick={() => {
-                        toast(`Signed in as ${currentUser.name} (${currentUser.role})`);
                         setIsProfileOpen(false);
+                        setIsProfileModalOpen(true);
                       }}
                     >
                       <User size={16} />
