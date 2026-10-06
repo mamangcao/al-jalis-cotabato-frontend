@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import toast from 'react-hot-toast';
+import { api } from '../services/api';
+import { useAuth } from '../AuthContext';
 
 const quranVerses = [
   { verse: "So remember Me; I will remember you.", reference: "Quran 2:152" },
@@ -12,14 +15,52 @@ const quranVerses = [
   { verse: "Call upon Me; I will respond to you.", reference: "Quran 40:60" }
 ];
 
+const demoAccounts = [
+  { role: 'Director', email: 'admin@aljalis.org', desc: 'Center Director' },
+  { role: 'Finance', email: 'finance@aljalis.org', desc: 'Brother Ali' },
+  { role: 'HR', email: 'hr@aljalis.org', desc: 'Aisha Santos' },
+  { role: 'Staff', email: 'staff@aljalis.org', desc: 'Omar Hassan' },
+];
+
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const [verse, setVerse] = useState(quranVerses[0]);
+  const [email, setEmail] = useState('admin@aljalis.org');
+  const [password, setPassword] = useState('password123');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { setCurrentUser } = useAuth();
 
   useEffect(() => {
-    // Pick random verse on mount
     const randomVerse = quranVerses[Math.floor(Math.random() * quranVerses.length)];
     setVerse(randomVerse);
   }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const res = await api.auth.login(email.trim(), password);
+      if (res?.user) {
+        setCurrentUser(res.user);
+      }
+      toast.success(`Welcome, ${res.user?.name || 'User'}!`);
+      onLogin();
+    } catch (err: any) {
+      const msg = err.message || 'Invalid email or password. Please verify your credentials.';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectDemoAccount = (accEmail: string) => {
+    setEmail(accEmail);
+    setPassword('password123');
+    setError('');
+  };
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex font-sans">
@@ -70,7 +111,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
 
       {/* Right Area - Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 lg:p-24 bg-white relative">
-        <div className="w-full max-w-md space-y-10">
+        <div className="w-full max-w-md space-y-8">
           <div className="lg:hidden flex items-center gap-3 text-[#FF6B00] tracking-tight mb-8">
             <div className="w-8 h-8 bg-[#FF6B00] rounded-lg flex items-center justify-center shrink-0">
                 <div className="w-4 h-4 bg-white rounded-sm"></div>
@@ -83,27 +124,36 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
 
           <div>
             <h1 className="text-3xl font-bold text-[#111827]">مرحبًا بعودتك</h1>
-            <p className="text-[#6B7280] mt-2 text-[15px]">سجّل الدخول إلى حسابك للمتابعة</p>
+            <p className="text-[#6B7280] mt-2 text-[15px]">Sign in to your account to continue</p>
           </div>
 
-          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); onLogin(); }}>
+          {error && (
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-[#111827]">Email Address</label>
               <input 
                 type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full px-4 py-3 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm focus:bg-white focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FFF0E6] outline-hidden transition-all text-[#111827]" 
-                placeholder="admin@al-jalis.org" 
+                placeholder="admin@aljalis.org" 
               />
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-semibold text-[#111827]">Password</label>
-                <a href="#" className="text-sm font-medium text-[#FF6B00] hover:text-[#E66000] transition-colors">Forgot password?</a>
               </div>
               <input 
                 type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
                 className="w-full px-4 py-3 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm focus:bg-white focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FFF0E6] outline-hidden transition-all text-[#111827]" 
                 placeholder="••••••••" 
@@ -112,11 +162,40 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
 
             <button 
               type="submit" 
-              className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-[15px] font-semibold text-white bg-[#FF6B00] hover:bg-[#E66000] transition-colors"
+              disabled={isLoading}
+              className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-[15px] font-semibold text-white bg-[#FF6B00] hover:bg-[#E66000] transition-colors disabled:opacity-60 cursor-pointer"
             >
-              Sign In
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                'Sign In'
+              )}
             </button>
           </form>
+
+          {/* Quick Demo Sign-in Helpers */}
+          <div className="pt-4 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2.5">
+              Quick Sign In (Test Accounts):
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {demoAccounts.map((acc) => (
+                <button
+                  key={acc.email}
+                  type="button"
+                  onClick={() => handleSelectDemoAccount(acc.email)}
+                  className={`text-left p-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${
+                    email === acc.email 
+                      ? 'border-[#FF6B00] bg-[#FFF8F3] text-[#FF6B00] font-semibold' 
+                      : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <div className="font-medium">{acc.role}</div>
+                  <div className="text-[11px] text-gray-500 truncate">{acc.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

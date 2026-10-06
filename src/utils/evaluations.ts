@@ -94,6 +94,8 @@ const INITIAL_EVALUATIONS: AnonymousEvaluation[] = [
   }
 ];
 
+import { api } from '../services/api';
+
 export function getStoredEvaluations(): AnonymousEvaluation[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -108,14 +110,28 @@ export function getStoredEvaluations(): AnonymousEvaluation[] {
   }
 }
 
-export function saveEvaluation(params: {
+export async function fetchEvaluationsFromApi(): Promise<AnonymousEvaluation[]> {
+  try {
+    const data = await api.evaluations.getAll();
+    if (Array.isArray(data) && data.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      window.dispatchEvent(new CustomEvent('evaluations-updated', { detail: data }));
+      return data;
+    }
+  } catch (err) {
+    console.warn('Could not fetch evaluations from API, using cached data.', err);
+  }
+  return getStoredEvaluations();
+}
+
+export async function saveEvaluation(params: {
   targetUserId: string;
   ratings: EvaluationRatings;
   feedback: EvaluationFeedback;
-}): AnonymousEvaluation {
+}): Promise<AnonymousEvaluation> {
   // CRITICAL PRIVACY SAFEGUARD:
   // Reviewer identity is completely stripped and never recorded in state or payload
-  const evaluationPayload: AnonymousEvaluation = {
+  const fallbackPayload: AnonymousEvaluation = {
     id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
     targetUserId: params.targetUserId,
     reviewerId: null, // STRIPPED FOR ANONYMITY
@@ -129,15 +145,26 @@ export function saveEvaluation(params: {
   };
 
   try {
+    const remote = await api.evaluations.create({
+      targetUserId: params.targetUserId,
+      ratings: params.ratings,
+      feedback: {
+        strengths: params.feedback.strengths.trim(),
+        areasToImprove: params.feedback.areasToImprove.trim()
+      },
+      isAnonymous: true,
+    }).catch(() => null);
+
+    const savedRecord = remote || fallbackPayload;
     const current = getStoredEvaluations();
-    const updated = [evaluationPayload, ...current];
+    const updated = [savedRecord, ...current.filter(e => e.id !== savedRecord.id)];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent('evaluations-updated', { detail: evaluationPayload }));
+    window.dispatchEvent(new CustomEvent('evaluations-updated', { detail: savedRecord }));
+    return savedRecord;
   } catch (err) {
     console.error('Failed to save evaluation to storage:', err);
+    return fallbackPayload;
   }
-
-  return evaluationPayload;
 }
 
 /**

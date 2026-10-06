@@ -44,8 +44,8 @@ import { initialReverts, initialEvents, initialMembers, mockTasks, mockCampaigns
 import { api } from './services/api';
 
 function MainApp() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const { currentUser, toggleRole } = useAuth();
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('auth_token'));
+  const { currentUser, toggleRole, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
@@ -69,8 +69,9 @@ function MainApp() {
     endDate: null
   });
 
-  // Load live data from Laravel backend on mount
+  // Load live data from Laravel backend when authenticated
   useEffect(() => {
+    if (!isAuthenticated) return;
     let isMounted = true;
     const fetchBackendData = async () => {
       try {
@@ -119,7 +120,7 @@ function MainApp() {
 
     fetchBackendData();
     return () => { isMounted = false; };
-  }, []);
+  }, [isAuthenticated]);
 
   interface NavTab {
     id: string;
@@ -467,8 +468,8 @@ function MainApp() {
                     <div className="text-[11px] text-gray-500">{currentUser.role === 'staff' ? 'Staff' : 'Admin User'}</div>
                     <div className="text-xs text-gray-500">Dept: {currentUser.department}</div>
                   </div>
-                  <div className="h-8 w-8 rounded-full bg-[#DDD] flex items-center justify-center text-gray-600 font-semibold text-sm">
-                    AD
+                  <div className="h-8 w-8 rounded-full bg-[#FF6B00] text-white flex items-center justify-center font-bold text-xs uppercase shadow-xs">
+                    {currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'AJ'}
                   </div>
                   <ChevronDown size={16} className="text-gray-500" />
                 </button>
@@ -488,9 +489,11 @@ function MainApp() {
                     <div className="border-t border-gray-100 my-1"></div>
                     <div 
                       className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer"
-                      onClick={() => {
+                      onClick={async () => {
                         setIsProfileOpen(false);
+                        await logout();
                         setIsAuthenticated(false);
+                        toast.success('Signed out successfully');
                       }}
                     >
                       <LogOut size={16} />

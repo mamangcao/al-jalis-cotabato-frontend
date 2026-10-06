@@ -181,8 +181,30 @@ class ApiService {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-    delete: (id: string | number) => this.request<{ message: string }>(`/leaves/${id}`, {
+  };
+
+  // ================= Peer Evaluations =================
+  evaluations = {
+    getAll: (params?: { targetUserId?: string; cycle?: string }) => {
+      const search = params ? '?' + new URLSearchParams(params as any).toString() : '';
+      return this.request<any[]>(`/evaluations${search}`);
+    },
+    create: (data: any) => this.request<any>('/evaluations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    delete: (id: string | number) => this.request<{ message: string }>(`/evaluations/${id}`, {
       method: 'DELETE',
+    }),
+  };
+
+  // ================= System Settings =================
+  settings = {
+    getAll: () => this.request<Record<string, any>>('/settings'),
+    get: (key: string) => this.request<any>(`/settings/${key}`),
+    save: (data: { key?: string; value?: any; group?: string; settings?: Record<string, any> }) => this.request<any>('/settings', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
   };
 }

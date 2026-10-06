@@ -67,6 +67,8 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettingsData = {
 const STORAGE_KEY = 'hrms_system_settings_v2';
 const DEPARTMENTS_KEY = 'hrms_departments';
 
+import { api } from '../services/api';
+
 export function getSystemSettings(): SystemSettingsData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -95,12 +97,53 @@ export function getSystemSettings(): SystemSettingsData {
   return DEFAULT_SYSTEM_SETTINGS;
 }
 
+export async function fetchSystemSettingsFromApi(): Promise<SystemSettingsData> {
+  try {
+    const remote = await api.settings.getAll();
+    if (remote && typeof remote === 'object') {
+      const current = getSystemSettings();
+      const merged: SystemSettingsData = {
+        leavePolicies: {
+          ...current.leavePolicies,
+          ...(remote.leavePolicies || {}),
+        },
+        restrictedPeriods: Array.isArray(remote.restrictedPeriods)
+          ? remote.restrictedPeriods
+          : current.restrictedPeriods,
+        organization: {
+          ...current.organization,
+          ...(remote.organization || {}),
+        },
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      localStorage.setItem(DEPARTMENTS_KEY, JSON.stringify(merged.organization.departments));
+      window.dispatchEvent(new Event('system-settings-updated'));
+      window.dispatchEvent(new Event('departments-updated'));
+      return merged;
+    }
+  } catch (err) {
+    console.warn('Could not fetch settings from API, using cached settings.', err);
+  }
+  return getSystemSettings();
+}
+
 export function saveSystemSettings(settings: SystemSettingsData): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     localStorage.setItem(DEPARTMENTS_KEY, JSON.stringify(settings.organization.departments));
     window.dispatchEvent(new Event('system-settings-updated'));
     window.dispatchEvent(new Event('departments-updated'));
+
+    // Persist remotely to MySQL in background
+    api.settings.save({
+      settings: {
+        leavePolicies: settings.leavePolicies,
+        restrictedPeriods: settings.restrictedPeriods,
+        organization: settings.organization,
+      }
+    }).catch(err => {
+      console.warn('Could not sync settings to backend API:', err);
+    });
   } catch (error) {
     console.error('Error saving system settings to localStorage:', error);
   }

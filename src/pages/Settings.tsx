@@ -23,6 +23,7 @@ import { canManagePersonnel } from '../lib/permissions';
 import GlobalPillTabs, { TabItem } from '../components/ui/GlobalPillTabs';
 import { 
   getSystemSettings, 
+  fetchSystemSettingsFromApi,
   saveSystemSettings, 
   DEFAULT_SYSTEM_SETTINGS, 
   SystemSettingsData,
@@ -73,8 +74,10 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
   const [departments, setDepartments] = useState<string[]>(settings.organization.departments);
   const [newDepartmentName, setNewDepartmentName] = useState('');
 
-  // Keep state synced with external updates if any
+  // Keep state synced with external updates and fetch from API
   useEffect(() => {
+    fetchSystemSettingsFromApi();
+
     const handleSync = () => {
       const updated = getSystemSettings();
       setSettings(updated);

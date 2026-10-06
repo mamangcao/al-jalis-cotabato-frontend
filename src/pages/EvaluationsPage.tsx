@@ -23,6 +23,7 @@ import { canManagePersonnel } from '../lib/permissions';
 import HrOverview from '../components/evaluations/HrOverview';
 import { 
   getStoredEvaluations, 
+  fetchEvaluationsFromApi,
   saveEvaluation, 
   isEndOfMonth,
   isLastWeekOfMonth,
@@ -160,12 +161,15 @@ export default function EvaluationsPage({ members }: EvaluationsPageProps) {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Sync evaluations from storage
+  // Sync evaluations from API and storage
   useEffect(() => {
     const loadData = () => {
       setEvaluations(getStoredEvaluations());
     };
     loadData();
+    fetchEvaluationsFromApi().then(data => {
+      if (data && Array.isArray(data)) setEvaluations(data);
+    });
 
     const handleStorageUpdate = () => loadData();
     window.addEventListener('evaluations-updated', handleStorageUpdate);
@@ -249,7 +253,7 @@ export default function EvaluationsPage({ members }: EvaluationsPageProps) {
   }, [myFeedback]);
 
   // Submission handler with Anonymity Guard & Hard Submission Failsafe
-  const handleSubmitEvaluation = (e: React.FormEvent) => {
+  const handleSubmitEvaluation = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!selectedTargetId) {
@@ -292,7 +296,7 @@ export default function EvaluationsPage({ members }: EvaluationsPageProps) {
         createdAt: new Date().toISOString()
       };
 
-      saveEvaluation(evaluationPayload);
+      await saveEvaluation(evaluationPayload);
 
       // Push to submitted targets to instantly remove from dropdown
       setSubmittedTargetIds(prev => [...prev, selectedTargetId]);
