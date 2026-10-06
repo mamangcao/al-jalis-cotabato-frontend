@@ -1,0 +1,191 @@
+/**
+ * API Service for communicating with Laravel Backend
+ */
+
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000/api';
+
+class ApiService {
+  private baseUrl: string;
+
+  constructor() {
+    this.baseUrl = API_BASE_URL;
+  }
+
+  private getToken(): string | null {
+    return localStorage.getItem('auth_token');
+  }
+
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const token = this.getToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(options.headers as Record<string, string> || {}),
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const message = errorData.message || `API Error: ${response.status} ${response.statusText}`;
+      const error = new Error(message) as any;
+      error.status = response.status;
+      error.errors = errorData.errors;
+      throw error;
+    }
+
+    return response.json();
+  }
+
+  // ================= Auth =================
+  auth = {
+    login: async (email: string, password: string) => {
+      const res = await this.request<{ token: string; user: any }>('/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      if (res.token) {
+        localStorage.setItem('auth_token', res.token);
+      }
+      return res;
+    },
+    logout: async () => {
+      try {
+        await this.request('/logout', { method: 'POST' });
+      } finally {
+        localStorage.removeItem('auth_token');
+      }
+    },
+    getUser: () => this.request<any>('/user'),
+  };
+
+  // ================= Reverts =================
+  reverts = {
+    getAll: () => this.request<any[]>('/reverts'),
+    get: (id: string | number) => this.request<any>(`/reverts/${id}`),
+    create: (data: any) => this.request<any>('/reverts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id: string | number, data: any) => this.request<any>(`/reverts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id: string | number) => this.request<{ message: string }>(`/reverts/${id}`, {
+      method: 'DELETE',
+    }),
+    getNextSerial: () => this.request<{ serialNumber: string }>('/reverts/next-serial'),
+  };
+
+  // ================= Members =================
+  members = {
+    getAll: () => this.request<any[]>('/members'),
+    get: (id: string | number) => this.request<any>(`/members/${id}`),
+    create: (data: any) => this.request<any>('/members', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id: string | number, data: any) => this.request<any>(`/members/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id: string | number) => this.request<{ message: string }>(`/members/${id}`, {
+      method: 'DELETE',
+    }),
+  };
+
+  // ================= Events =================
+  events = {
+    getAll: () => this.request<any[]>('/events'),
+    get: (id: string | number) => this.request<any>(`/events/${id}`),
+    create: (data: any) => this.request<any>('/events', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id: string | number, data: any) => this.request<any>(`/events/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id: string | number) => this.request<{ message: string }>(`/events/${id}`, {
+      method: 'DELETE',
+    }),
+  };
+
+  // ================= Tasks =================
+  tasks = {
+    getAll: () => this.request<any[]>('/tasks'),
+    get: (id: string | number) => this.request<any>(`/tasks/${id}`),
+    create: (data: any) => this.request<any>('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id: string | number, data: any) => this.request<any>(`/tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id: string | number) => this.request<{ message: string }>(`/tasks/${id}`, {
+      method: 'DELETE',
+    }),
+  };
+
+  // ================= Campaigns =================
+  campaigns = {
+    getAll: () => this.request<any[]>('/campaigns'),
+    get: (id: string | number) => this.request<any>(`/campaigns/${id}`),
+    create: (data: any) => this.request<any>('/campaigns', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id: string | number, data: any) => this.request<any>(`/campaigns/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id: string | number) => this.request<{ message: string }>(`/campaigns/${id}`, {
+      method: 'DELETE',
+    }),
+  };
+
+  // ================= Donations =================
+  donations = {
+    getAll: () => this.request<any[]>('/donations'),
+    get: (id: string | number) => this.request<any>(`/donations/${id}`),
+    create: (data: any) => this.request<any>('/donations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id: string | number, data: any) => this.request<any>(`/donations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id: string | number) => this.request<{ message: string }>(`/donations/${id}`, {
+      method: 'DELETE',
+    }),
+  };
+
+  // ================= Leaves =================
+  leaves = {
+    getAll: () => this.request<any[]>('/leaves'),
+    get: (id: string | number) => this.request<any>(`/leaves/${id}`),
+    create: (data: any) => this.request<any>('/leaves', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    update: (id: string | number, data: any) => this.request<any>(`/leaves/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    delete: (id: string | number) => this.request<{ message: string }>(`/leaves/${id}`, {
+      method: 'DELETE',
+    }),
+  };
+}
+
+export const api = new ApiService();
+
