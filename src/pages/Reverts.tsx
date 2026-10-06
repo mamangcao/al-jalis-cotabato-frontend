@@ -15,6 +15,7 @@ import EmptyState from '../components/EmptyState';
 import { createPortal } from 'react-dom';
 import { generateRevertSerial, getChapterCode } from '../utils/revertSerial';
 import { api } from '../services/api';
+import toast from 'react-hot-toast';
 
 function PrintPreviewModal({ revert, onClose }: { revert: any, onClose: () => void }) {
   const documentRef = useRef<HTMLDivElement>(null);
@@ -651,9 +652,19 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
                           <input 
                             type="file" 
                             accept="image/*"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               if (e.target.files && e.target.files[0]) {
-                                setFormData({...formData, profilePic: URL.createObjectURL(e.target.files[0])});
+                                const file = e.target.files[0];
+                                try {
+                                  toast.loading('Uploading photo...', { id: 'upload-revert-photo' });
+                                  const res = await api.uploadFile(file);
+                                  setFormData({ ...formData, profilePic: res.url });
+                                  toast.success('Photo uploaded successfully', { id: 'upload-revert-photo' });
+                                } catch (err: any) {
+                                  console.error(err);
+                                  setFormData({ ...formData, profilePic: URL.createObjectURL(file) });
+                                  toast.error(err.message || 'Upload failed, using local preview', { id: 'upload-revert-photo' });
+                                }
                               }
                             }}
                             className="w-full text-[13px] text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[13px] file:font-semibold file:bg-orange-50 file:text-orange-600 hover:file:bg-orange-100 cursor-pointer transition-colors"

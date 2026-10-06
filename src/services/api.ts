@@ -207,6 +207,32 @@ class ApiService {
       body: JSON.stringify(data),
     }),
   };
+
+  // ================= Uploads =================
+  uploadFile = async (file: File): Promise<{ url: string; path: string; name: string }> => {
+    const token = this.getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${this.baseUrl}/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || 'Failed to upload image');
+    }
+
+    return response.json();
+  };
 }
 
 export const api = new ApiService();

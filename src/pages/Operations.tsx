@@ -597,10 +597,19 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                   <input 
                     type="file" 
                     accept="image/*"
-                    disabled={isReadOnly}
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       if (e.target.files && e.target.files[0]) {
-                        setFormData({...formData, profilePic: URL.createObjectURL(e.target.files[0])});
+                        const file = e.target.files[0];
+                        try {
+                          toast.loading('Uploading photo...', { id: 'upload-avatar' });
+                          const res = await api.uploadFile(file);
+                          setFormData({ ...formData, profilePic: res.url });
+                          toast.success('Photo uploaded successfully', { id: 'upload-avatar' });
+                        } catch (err: any) {
+                          console.error(err);
+                          setFormData({ ...formData, profilePic: URL.createObjectURL(file) });
+                          toast.error(err.message || 'Upload failed, using local preview', { id: 'upload-avatar' });
+                        }
                       }
                     }}
                     className="w-full text-[13px] text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[13px] file:font-semibold file:bg-orange-50 file:text-orange-600 hover:file:bg-orange-100 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
