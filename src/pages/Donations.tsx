@@ -1,5 +1,5 @@
 import toast from 'react-hot-toast';
-import { canManageOperations } from '../lib/permissions';
+import { canManageFinance } from '../lib/permissions';
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -158,8 +158,8 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
 
   const handleSaveDonation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageOperations(currentUser.role)) {
-      toast.error("Unauthorized: Operations access required.");
+    if (!canManageFinance(currentUser.role)) {
+      toast.error("Unauthorized: Finance access required.");
       return;
     }
     const amountNum = Number(formData.amount);
@@ -228,8 +228,8 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
   };
 
   const confirmDeleteDonation = async () => {
-    if (!canManageOperations(currentUser.role)) {
-      toast.error("Unauthorized: Operations access required.");
+    if (!canManageFinance(currentUser.role)) {
+      toast.error("Unauthorized: Finance access required.");
       return;
     }
     if (donationToDelete) {
@@ -246,8 +246,8 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
 
   const handleSaveCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageOperations(currentUser.role)) {
-      toast.error("Unauthorized: Operations access required.");
+    if (!canManageFinance(currentUser.role)) {
+      toast.error("Unauthorized: Finance access required.");
       return;
     }
     const goalAmountNum = Number(campaignFormData.goalAmount);
@@ -306,8 +306,8 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
   };
 
   const confirmDeleteCampaign = async () => {
-    if (!canManageOperations(currentUser.role)) {
-      toast.error("Unauthorized: Operations access required.");
+    if (!canManageFinance(currentUser.role)) {
+      toast.error("Unauthorized: Finance access required.");
       return;
     }
     if (campaignToDelete) {
@@ -374,7 +374,7 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
           <h1 className="text-[24px] font-bold text-gray-900 mb-2 tracking-tight">Donations</h1>
           <p className="text-[14px] text-gray-500">Manage fundraising campaigns and donation history.</p>
         </div>
-        {view === 'campaigns' && canManageOperations(currentUser.role) && (
+        {view === 'campaigns' && canManageFinance(currentUser.role) && (
           <button 
             onClick={() => {
               setEditingCampaign(null);
@@ -414,14 +414,16 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
                   const percentage = Math.min((currentRaised / campaign.goalAmount) * 100, 100);
                   return (
                   <div key={campaign.id} className="relative bg-white shadow-sm border border-gray-200 rounded-lg p-5 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl group flex flex-col">
-                    <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                      <button onClick={(e) => { e.stopPropagation(); handleEditCampaign(campaign); }} className="p-1.5 text-gray-400 hover:text-emerald-600 bg-gray-50 hover:bg-emerald-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Edit">
-                        <Edit2 size={14} />
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); setCampaignToDelete(campaign.id); }} className="p-1.5 text-gray-400 hover:text-rose-500 bg-gray-50 hover:bg-rose-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Delete">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                    {canManageFinance(currentUser.role) && (
+                      <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <button onClick={(e) => { e.stopPropagation(); handleEditCampaign(campaign); }} className="p-1.5 text-gray-400 hover:text-emerald-600 bg-gray-50 hover:bg-emerald-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Edit">
+                          <Edit2 size={14} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setCampaignToDelete(campaign.id); }} className="p-1.5 text-gray-400 hover:text-rose-500 bg-gray-50 hover:bg-rose-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
                     <div className="flex justify-between items-start mb-3">
                       <h3 className="font-bold text-gray-900 text-lg leading-tight pr-12">{campaign.title}</h3>
                       <span className={`px-2 py-1 rounded text-[11px] font-bold tracking-wide uppercase text-white transition-opacity duration-200 group-hover:opacity-0 ${getCategoryColor(campaign.category)}`}>
@@ -558,13 +560,15 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
                     <Download size={16} />
                     Export PDF
                   </button>
-                  <button 
-                    onClick={() => setIsAddModalOpen(true)}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 whitespace-nowrap rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all duration-200 hover:opacity-90 active:scale-[0.97] cursor-pointer"
-                  >
-                    <Plus size={16} />
-                    Record Donation
-                  </button>
+                  {canManageFinance(currentUser.role) && (
+                    <button 
+                      onClick={() => setIsAddModalOpen(true)}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 whitespace-nowrap rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-all duration-200 hover:opacity-90 active:scale-[0.97] cursor-pointer"
+                    >
+                      <Plus size={16} />
+                      Record Donation
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -582,7 +586,9 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
                         <th className="px-6 py-4 font-semibold">Category</th>
                         <th className="px-6 py-4 font-semibold">Campaign</th>
                         <th className="px-6 py-4 font-semibold text-right">Amount</th>
-                        <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                        {canManageFinance(currentUser.role) && (
+                          <th className="px-6 py-4 font-semibold text-right">Actions</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-gray-700">
@@ -612,16 +618,18 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
                             </td>
                             <td className="px-6 py-4">{campaign?.title || '-'}</td>
                             <td className="px-6 py-4 font-bold text-right text-gray-900">{formatCurrency(donation.amount)}</td>
-                            <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                <button onClick={() => handleEditDonation(donation)} className="p-1.5 text-gray-400 hover:text-emerald-600 bg-gray-50 hover:bg-emerald-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Edit">
-                                  <Edit2 size={14} />
-                                </button>
-                                <button onClick={() => setDonationToDelete(donation.id)} className="p-1.5 text-gray-400 hover:text-rose-500 bg-gray-50 hover:bg-rose-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Delete">
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            </td>
+                            {canManageFinance(currentUser.role) && (
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button onClick={() => handleEditDonation(donation)} className="p-1.5 text-gray-400 hover:text-emerald-600 bg-gray-50 hover:bg-emerald-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Edit">
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button onClick={() => setDonationToDelete(donation.id)} className="p-1.5 text-gray-400 hover:text-rose-500 bg-gray-50 hover:bg-rose-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Delete">
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         );
                         })

@@ -15,17 +15,10 @@ const quranVerses = [
   { verse: "Call upon Me; I will respond to you.", reference: "Quran 40:60" }
 ];
 
-const demoAccounts = [
-  { role: 'Director', email: 'admin@aljalis.org', desc: 'Center Director' },
-  { role: 'Finance', email: 'finance@aljalis.org', desc: 'Brother Ali' },
-  { role: 'HR', email: 'hr@aljalis.org', desc: 'Aisha Santos' },
-  { role: 'Staff', email: 'staff@aljalis.org', desc: 'Omar Hassan' },
-];
-
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const [verse, setVerse] = useState(quranVerses[0]);
-  const [email, setEmail] = useState('admin@aljalis.org');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { setCurrentUser } = useAuth();
@@ -54,12 +47,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleSelectDemoAccount = (accEmail: string) => {
-    setEmail(accEmail);
-    setPassword('password123');
-    setError('');
   };
 
   return (
@@ -142,7 +129,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full px-4 py-3 bg-[#F9FAFB] border border-[#E5E7EB] rounded-xl text-sm focus:bg-white focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FFF0E6] outline-hidden transition-all text-[#111827]" 
-                placeholder="admin@aljalis.org" 
+                placeholder="name@aljalis.org" 
               />
             </div>
 
@@ -172,30 +159,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
               )}
             </button>
           </form>
-
-          {/* Quick Demo Sign-in Helpers */}
-          <div className="pt-4 border-t border-gray-100">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2.5">
-              Quick Sign In (Test Accounts):
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {demoAccounts.map((acc) => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  onClick={() => handleSelectDemoAccount(acc.email)}
-                  className={`text-left p-2.5 rounded-lg border text-xs transition-colors cursor-pointer ${
-                    email === acc.email 
-                      ? 'border-[#FF6B00] bg-[#FFF8F3] text-[#FF6B00] font-semibold' 
-                      : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                  }`}
-                >
-                  <div className="font-medium">{acc.role}</div>
-                  <div className="text-[11px] text-gray-500 truncate">{acc.desc}</div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>

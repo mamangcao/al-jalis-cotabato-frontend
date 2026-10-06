@@ -15,16 +15,15 @@ export interface User {
 interface AuthContextType {
   currentUser: User;
   setCurrentUser: (user: User) => void;
-  toggleRole: () => void;
   isAuthLoading: boolean;
   logout: () => Promise<void>;
 }
 
-const DEFAULT_USER: User = {
-  id: '1',
-  name: 'Brother Ali',
-  role: 'admin_finance',
-  department: 'Admin'
+const EMPTY_USER: User = {
+  id: '',
+  name: '',
+  role: 'staff',
+  department: '',
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,9 +32,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User>(() => {
     try {
       const saved = localStorage.getItem('auth_user');
-      return saved ? JSON.parse(saved) : DEFAULT_USER;
+      return saved ? JSON.parse(saved) : EMPTY_USER;
     } catch {
-      return DEFAULT_USER;
+      return EMPTY_USER;
     }
   });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -63,6 +62,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch {
           // Token expired or invalid
           localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
+          if (isMounted) {
+            setCurrentUser(EMPTY_USER);
+          }
         }
       }
       if (isMounted) {
@@ -74,18 +77,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { isMounted = false; };
   }, []);
 
-  const toggleRole = () => {
-    setCurrentUser(prev => {
-      let nextRole: Role = 'staff';
-      if (prev.role === 'staff') nextRole = 'admin_finance';
-      else if (prev.role === 'admin_finance') nextRole = 'admin_director';
-      const updated = { ...prev, role: nextRole };
-      try {
-        localStorage.setItem('auth_user', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-  };
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      setCurrentUser(EMPTY_USER);
+    };
+    window.addEventListener('auth:expired', handleAuthExpired);
+    return () => window.removeEventListener('auth:expired', handleAuthExpired);
+  }, []);
 
   const logout = async () => {
     try {
@@ -93,11 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
-    setCurrentUser(DEFAULT_USER);
+    setCurrentUser(EMPTY_USER);
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, setCurrentUser: handleSetUser, toggleRole, isAuthLoading, logout }}>
+    <AuthContext.Provider value={{ currentUser, setCurrentUser: handleSetUser, isAuthLoading, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -46,7 +46,16 @@ import { api } from './services/api';
 
 function MainApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('auth_token'));
-  const { currentUser, toggleRole, logout } = useAuth();
+  const { currentUser, logout } = useAuth();
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setIsAuthenticated(false);
+      toast.error('Session expired. Please sign in again.');
+    };
+    window.addEventListener('auth:expired', handleAuthExpired);
+    return () => window.removeEventListener('auth:expired', handleAuthExpired);
+  }, []);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
@@ -334,12 +343,6 @@ function MainApp() {
 
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-gray-200 shrink-0">
-          <button
-            onClick={toggleRole}
-            className="w-full mb-3 px-3 py-2 text-xs font-semibold rounded-lg bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 transition-colors whitespace-nowrap"
-          >
-            View as {currentUser.role === 'staff' ? 'Dept Head' : currentUser.role === 'admin_dept_head' ? 'Finance Admin' : currentUser.role === 'admin_finance' ? 'Director Admin' : 'Staff'}
-          </button>
           <div className="text-center text-xs text-gray-400 font-medium tracking-wide">
             Al-Jalis As-Salih HRMS v2.0.0
           </div>
@@ -471,7 +474,15 @@ function MainApp() {
                 >
                   <div className="text-right hidden lg:block">
                     <div className="text-sm font-semibold text-gray-900 leading-tight">{currentUser.name}</div>
-                    <div className="text-[11px] text-gray-500">{currentUser.role === 'staff' ? 'Staff' : 'Admin User'}</div>
+                    <div className="text-[11px] text-gray-500 font-medium">
+                      {currentUser.role === 'admin_director' 
+                        ? 'Center Director' 
+                        : currentUser.role === 'admin_finance' 
+                          ? 'Finance Admin' 
+                          : currentUser.role === 'admin_hr' 
+                            ? 'HR Admin' 
+                            : 'Staff Member'}
+                    </div>
                     <div className="text-xs text-gray-500">Dept: {currentUser.department}</div>
                   </div>
                   <div className="h-8 w-8 rounded-full bg-[#FF6B00] text-white flex items-center justify-center font-bold text-xs uppercase shadow-xs">

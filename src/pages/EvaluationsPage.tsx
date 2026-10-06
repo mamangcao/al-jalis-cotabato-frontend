@@ -97,8 +97,7 @@ export default function EvaluationsPage({ members }: EvaluationsPageProps) {
   // 1. The "Last Week Only" Time Lock
   // In the Evaluations component, if !isLastWeekOfMonth() is true, replace the entire submission form
   // with a locked state UI: a padlock icon and a message saying, "Peer evaluations are currently closed. The feedback portal opens during the final week of every month."
-  const [simulateOpenForTesting, setSimulateOpenForTesting] = useState(false);
-  const isPortalOpen = isLastWeekOfMonth() || simulateOpenForTesting;
+  const isPortalOpen = isLastWeekOfMonth();
 
   // 1. Filter Out Current User (No Self-Evaluation)
   const allUsers = useMemo(() => members, [members]);
@@ -329,7 +328,7 @@ export default function EvaluationsPage({ members }: EvaluationsPageProps) {
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       {/* End of Month / Last Week Reminder Banner */}
-      {(isLastWeekOfMonth() || isEndOfMonth() || simulateOpenForTesting) && (
+      {(isLastWeekOfMonth() || isEndOfMonth()) && (
         <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
             <h3 className="text-blue-800 font-medium">Monthly Peer Evaluations are Due</h3>
@@ -393,24 +392,9 @@ export default function EvaluationsPage({ members }: EvaluationsPageProps) {
               Peer evaluations are currently closed. The feedback portal opens during the final week of every month.
             </p>
 
-            <div className="inline-flex items-center gap-2 px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600 mb-6">
+            <div className="inline-flex items-center gap-2 px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-600">
               <Clock size={15} className="text-gray-500" />
               <span>Portal automatically opens during the final 7 days of each month.</span>
-            </div>
-
-            {/* Development / Testing Mode Simulation Toggle */}
-            <div className="pt-6 border-t border-gray-100 flex flex-col items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSimulateOpenForTesting(true)}
-                className="text-xs font-semibold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-4 py-2.5 rounded-lg transition border border-orange-200 flex items-center gap-2"
-              >
-                <Sparkles size={14} />
-                Preview & Test Evaluation Form (Simulate Final Week Window)
-              </button>
-              <span className="text-[11px] text-gray-400">
-                Allows testing self-evaluations and 1-per-month target dropdown filtering
-              </span>
             </div>
           </div>
         ) : availableTargets.length === 0 ? (
@@ -433,37 +417,11 @@ export default function EvaluationsPage({ members }: EvaluationsPageProps) {
               >
                 View My Received Feedback
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSubmittedTargetIds([]);
-                  toast.success('Reset evaluation tracking logs for testing');
-                }}
-                className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition"
-              >
-                Reset Evaluations (Testing)
-              </button>
             </div>
           </div>
         ) : (
           /* The "Submit Feedback" UI */
           <div className="bg-white rounded-xl shadow-xs border border-gray-100 p-4 md:p-6 lg:p-8">
-            {simulateOpenForTesting && (
-              <div className="mb-6 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
-                <span className="flex items-center gap-2">
-                  <Sparkles size={14} className="text-amber-600" />
-                  <strong>Test Mode Active:</strong> Simulating final week open window.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSimulateOpenForTesting(false)}
-                  className="text-xs font-semibold text-amber-900 underline hover:no-underline"
-                >
-                  Lock Portal (Test Closed State)
-                </button>
-              </div>
-            )}
-
             <div className="mb-6 pb-4 border-b border-gray-100">
               <h2 className="text-lg font-semibold text-gray-900">Submit Anonymous Colleague Review</h2>
               <p className="text-xs text-gray-500 mt-0.5">

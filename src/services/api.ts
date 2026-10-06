@@ -33,6 +33,11 @@ class ApiService {
     });
 
     if (!response.ok) {
+      if (response.status === 401 && endpoint !== '/login') {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+        window.dispatchEvent(new CustomEvent('auth:expired'));
+      }
       const errorData = await response.json().catch(() => ({}));
       let message = errorData.message || `API Error: ${response.status} ${response.statusText}`;
       if (errorData.errors && typeof errorData.errors === 'object') {
@@ -196,6 +201,9 @@ class ApiService {
     update: (id: string | number, data: any) => this.request<any>(`/leaves/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    }),
+    delete: (id: string | number) => this.request<{ message: string }>(`/leaves/${id}`, {
+      method: 'DELETE',
     }),
   };
 
