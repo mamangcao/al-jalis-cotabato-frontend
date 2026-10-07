@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, BellRing, Calendar, ClipboardList, FileText, MessageSquareHeart, Users, Megaphone } from 'lucide-react';
+import { Bell, BellRing, Calendar, ClipboardList, FileText, MessageSquareHeart, Users, Megaphone, Pin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { isToday, isTomorrow, format } from 'date-fns';
 import { ToastContainer } from './Toast';
@@ -238,38 +238,37 @@ export default function NotificationBell({
       }
     }
 
-    // 6. Staff Noticeboard Notices
+    // 6. Staff Noticeboard Notices & Posts
     if (canAccessNoticeboard(currentUser) && notices && notices.length > 0) {
-      notices.forEach(notice => {
-        // Exclude notices authored by current user
-        if (currentUser?.id && String(notice.created_by_user_id || '') === String(currentUser.id)) {
+      notices.forEach(item => {
+        // Exclude items authored by current user
+        if (currentUser?.id && String(item.created_by_user_id || '') === String(currentUser.id)) {
           return;
         }
 
-        const noticeId = `notice-${notice.id}`;
-        const isOfficial = notice.type === 'official_notice';
-        const title = isOfficial ? 'Official Notice' : 'Staff Note';
-        const authorPrefix = notice.author_name ? `${notice.author_name}: ` : '';
-        const displaySnippet = notice.title || notice.content || 'New notice posted';
-        const message = isOfficial 
-          ? `Official Announcement: ${displaySnippet}`
-          : `Staff Note: ${authorPrefix}${displaySnippet}`;
+        const isNotice = item.type === 'notice' || item.type === 'official_notice';
+        const notifId = `noticeboard-${item.id}`;
+        const title = isNotice ? 'New Staff Notice' : 'New Staff Post';
+        const displaySnippet = item.title || item.content || item.text || 'New update posted';
+        const message = isNotice 
+          ? `Notice: ${displaySnippet}`
+          : `Post from ${item.author_name || 'Staff'}: ${displaySnippet}`;
 
-        const createdAt = notice.created_at ? new Date(notice.created_at) : new Date();
+        const createdAt = item.created_at ? new Date(item.created_at) : new Date();
 
         newNotifications.push({
-          id: noticeId,
-          type: 'notice',
-          entity_type: 'notice',
-          entity_id: notice.id,
+          id: notifId,
+          type: isNotice ? 'notice' : 'staff_post',
+          entity_type: isNotice ? 'notice' : 'post',
+          entity_id: item.id,
           title,
           message,
           timestamp: isNaN(createdAt.getTime()) ? new Date() : createdAt,
-          isRead: readIds.has(noticeId),
+          isRead: readIds.has(notifId),
           target_tab: 'dashboard',
           action_url: '/',
-          action_label: 'View Notice',
-          metadata: { noticeId: notice.id, noticeType: notice.type }
+          action_label: isNotice ? 'View Notice' : 'View Post',
+          metadata: { itemId: item.id, itemType: item.type }
         });
       });
     }
@@ -383,6 +382,9 @@ export default function NotificationBell({
     }
     if (type.includes('notice') || entityType === 'notice') {
       return <Megaphone size={16} className="text-amber-600" />;
+    }
+    if (type.includes('post') || entityType === 'post') {
+      return <Pin size={16} className="text-blue-600" />;
     }
     return <Bell size={16} className="text-gray-500" />;
   };

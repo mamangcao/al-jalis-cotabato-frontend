@@ -143,12 +143,12 @@ class ApiService {
   notices = {
     getAll: () => this.request<any[]>('/notices'),
     get: (id: string | number) => this.request<any>(`/notices/${id}`),
-    create: (data: { title?: string; content: string; type?: 'staff_note' | 'official_notice'; department?: string }) =>
+    create: (data: { title?: string; content: string; type?: 'staff_note' | 'official_notice' | 'post' | 'notice' | string; department?: string; audience?: string }) =>
       this.request<any>('/notices', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    update: (id: string | number, data: { title?: string; content?: string; type?: 'staff_note' | 'official_notice'; department?: string }) =>
+    update: (id: string | number, data: { title?: string; content?: string; type?: 'staff_note' | 'official_notice' | 'post' | 'notice' | string; department?: string; audience?: string }) =>
       this.request<any>(`/notices/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),

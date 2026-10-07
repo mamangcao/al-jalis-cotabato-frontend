@@ -16,6 +16,8 @@ export type NotificationType =
   | 'leave_pending'
   | 'revert_mentorship'
   | 'notice'
+  | 'post'
+  | 'staff_post'
   | 'system';
 
 export type EntityType =
@@ -27,6 +29,7 @@ export type EntityType =
   | 'member'
   | 'donation'
   | 'notice'
+  | 'post'
   | 'system';
 
 export interface AppNotification {
@@ -231,13 +234,13 @@ export function resolveNotificationDestination(
     };
   }
 
-  // 8. Notices -> Dashboard (Staff Noticeboard)
-  if (entityType === 'notice' || notifType === 'notice') {
+  // 8. Notices & Posts -> Dashboard (Staff Noticeboard)
+  if (entityType === 'notice' || notifType === 'notice' || entityType === 'post' || notifType === 'post' || notifType === 'staff_post') {
     if (!canAccessNoticeboard(currentUser)) {
       return {
         tab: 'evaluations',
         path: '/evaluations',
-        entityType: 'notice',
+        entityType: entityType || 'notice',
         entityId,
         isAuthorized: false,
         unauthorizedMessage: 'Evaluation-only accounts cannot access the Staff Noticeboard.'
@@ -246,7 +249,7 @@ export function resolveNotificationDestination(
     return {
       tab: 'dashboard',
       path: '/',
-      entityType: 'notice',
+      entityType: entityType || 'notice',
       entityId,
       isAuthorized: true
     };

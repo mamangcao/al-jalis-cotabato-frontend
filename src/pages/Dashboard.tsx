@@ -25,7 +25,8 @@ import {
   Trash2,
   X,
   Loader2,
-  User
+  User,
+  MessageSquare
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
@@ -36,6 +37,7 @@ import {
   canAccessTaskBoard,
   canAccessNoticeboard,
   canCreateOfficialNotice,
+  canCreateStaffPost,
   canCreateStaffNote,
   canModerateNotices,
   canManageNotice
@@ -113,33 +115,27 @@ export default function Dashboard({
   const [quickNote, setQuickNote] = useState('');
   const [isQuickSubmitting, setIsQuickSubmitting] = useState(false);
 
-  // Notice creation form data
+  // Notice creation form data (for + Post Notice modal)
   const [noticeFormData, setNoticeFormData] = useState<{
     title: string;
     content: string;
-    type: 'staff_note' | 'official_notice';
-    department: string;
   }>({
     title: '',
-    content: '',
-    type: 'staff_note',
-    department: currentUser?.department || ''
+    content: ''
   });
 
   // Notice edit form data
   const [editFormData, setEditFormData] = useState<{
     title: string;
     content: string;
-    type: 'staff_note' | 'official_notice';
-    department: string;
+    type: 'post' | 'notice';
   }>({
     title: '',
     content: '',
-    type: 'staff_note',
-    department: ''
+    type: 'post'
   });
 
-  // Watch for selectedNoticeId to automatically open View Notice modal
+  // Watch for selectedNoticeId to automatically open View Notice / View Post modal
   useEffect(() => {
     if (!selectedNoticeId) return;
 
@@ -168,12 +164,12 @@ export default function Dashboard({
   };
 
   const handleOpenEditModal = (notice: any) => {
+    const isNotice = notice.type === 'notice' || notice.type === 'official_notice';
     setEditingNotice(notice);
     setEditFormData({
       title: notice.title || '',
       content: notice.content || notice.text || '',
-      type: notice.type || 'staff_note',
-      department: notice.department || ''
+      type: isNotice ? 'notice' : 'post'
     });
     setIsViewModalOpen(false);
     setIsEditModalOpen(true);
@@ -190,20 +186,19 @@ export default function Dashboard({
       const payload = {
         title: noticeFormData.title.trim() || null,
         content: noticeFormData.content.trim(),
-        type: noticeFormData.type,
-        department: noticeFormData.type === 'official_notice' ? null : (noticeFormData.department.trim() || null)
+        type: 'notice',
+        audience: 'all_staff',
+        department: currentUser?.department || null
       };
       const created = await api.notices.create(payload);
       if (setNotices) {
         setNotices(prev => [created, ...prev]);
       }
-      toast.success(noticeFormData.type === 'official_notice' ? 'Official notice published.' : 'Staff note posted.');
+      toast.success('Official notice published.');
       setIsCreateModalOpen(false);
       setNoticeFormData({
         title: '',
-        content: '',
-        type: 'staff_note',
-        department: currentUser?.department || ''
+        content: ''
       });
     } catch (err: any) {
       toast.error(err?.message || 'Failed to post notice.');
@@ -215,24 +210,25 @@ export default function Dashboard({
   const handleQuickPost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickNote.trim()) return;
-    if (!canCreateStaffNote(currentUser)) {
-      toast.error('Unauthorized to post notes.');
+    if (!canCreateStaffPost(currentUser)) {
+      toast.error('Unauthorized to post staff updates.');
       return;
     }
     setIsQuickSubmitting(true);
     try {
       const created = await api.notices.create({
         content: quickNote.trim(),
-        type: 'staff_note',
+        type: 'post',
+        audience: 'all_staff',
         department: currentUser?.department || null
       });
       if (setNotices) {
         setNotices(prev => [created, ...prev]);
       }
       setQuickNote('');
-      toast.success('Staff note posted.');
+      toast.success('Staff post published.');
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to post note.');
+      toast.error(err?.message || 'Failed to post staff update.');
     } finally {
       setIsQuickSubmitting(false);
     }
@@ -242,7 +238,7 @@ export default function Dashboard({
     e.preventDefault();
     if (!editingNotice) return;
     if (!editFormData.content.trim()) {
-      toast.error('Notice content is required.');
+      toast.error('Content is required.');
       return;
     }
     setIsSubmittingNotice(true);
@@ -250,19 +246,18 @@ export default function Dashboard({
       const payload = {
         title: editFormData.title.trim() || null,
         content: editFormData.content.trim(),
-        type: editFormData.type,
-        department: editFormData.type === 'official_notice' ? null : (editFormData.department.trim() || null)
+        type: editFormData.type
       };
       const updated = await api.notices.update(editingNotice.id, payload);
       if (setNotices) {
         setNotices(prev => prev.map(n => n.id === editingNotice.id ? updated : n));
       }
-      toast.success('Notice updated successfully.');
+      toast.success(editFormData.type === 'notice' ? 'Notice updated successfully.' : 'Post updated successfully.');
       setIsEditModalOpen(false);
       setViewingNotice(updated);
       setIsViewModalOpen(true);
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to update notice.');
+      toast.error(err?.message || 'Failed to update item.');
     } finally {
       setIsSubmittingNotice(false);
     }
@@ -270,19 +265,20 @@ export default function Dashboard({
 
   const handleDeleteNotice = async () => {
     if (!viewingNotice) return;
+    const isNotice = viewingNotice.type === 'notice' || viewingNotice.type === 'official_notice';
     setIsDeletingNotice(true);
     try {
       await api.notices.delete(viewingNotice.id);
       if (setNotices) {
         setNotices(prev => prev.filter(n => n.id !== viewingNotice.id));
       }
-      toast.success('Notice deleted successfully.');
+      toast.success(isNotice ? 'Notice deleted successfully.' : 'Post deleted successfully.');
       setIsDeleteConfirmOpen(false);
       setIsViewModalOpen(false);
       setViewingNotice(null);
       onClearSelectedNotice?.();
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to delete notice.');
+      toast.error(err?.message || 'Failed to delete item.');
     } finally {
       setIsDeletingNotice(false);
     }
@@ -596,14 +592,17 @@ export default function Dashboard({
                   {notices.length}
                 </span>
               </div>
-              {canCreateStaffNote(currentUser) && (
+              {canCreateOfficialNotice(currentUser) && (
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                  onClick={() => {
+                    setNoticeFormData({ title: '', content: '' });
+                    setIsCreateModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
                   <Plus size={14} />
-                  <span>Post Notice</span>
+                  <span>+ Post Notice</span>
                 </button>
               )}
             </div>
@@ -617,7 +616,7 @@ export default function Dashboard({
                 </div>
               ) : (
                 notices.map((notice) => {
-                  const isOfficial = notice.type === 'official_notice';
+                  const isOfficial = notice.type === 'official_notice' || notice.type === 'notice';
                   return (
                     <div 
                       key={notice.id} 
@@ -625,7 +624,11 @@ export default function Dashboard({
                         setViewingNotice(notice);
                         setIsViewModalOpen(true);
                       }}
-                      className="group flex flex-col p-3 bg-gray-50 hover:bg-orange-50/50 rounded-lg border border-gray-100 hover:border-orange-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs"
+                      className={`group flex flex-col p-3 rounded-lg border transition-all cursor-pointer shadow-2xs hover:shadow-xs ${
+                        isOfficial
+                          ? 'bg-amber-50/40 hover:bg-amber-50/70 border-amber-200/80 border-l-4 border-l-amber-500'
+                          : 'bg-white hover:bg-slate-50 border-gray-100 hover:border-gray-200 border-l-4 border-l-blue-400'
+                      }`}
                       role="button"
                       tabIndex={0}
                       onKeyDown={(e) => {
@@ -640,11 +643,11 @@ export default function Dashboard({
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {isOfficial ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
-                              <Megaphone size={10} /> Official
+                              <Megaphone size={10} /> Notice
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">
-                              <Pin size={10} /> Note
+                              <MessageSquare size={10} /> Post
                             </span>
                           )}
                           {notice.department && (
@@ -679,14 +682,14 @@ export default function Dashboard({
               )}
             </div>
 
-            {/* Quick Note Input at bottom */}
-            {canCreateStaffNote(currentUser) && (
+            {/* Quick Post Composer at bottom */}
+            {canCreateStaffPost(currentUser) && (
               <form onSubmit={handleQuickPost} className="flex gap-2 mt-3 pt-3 border-t border-gray-100 shrink-0 w-full">
                 <input 
                   type="text" 
                   value={quickNote}
                   onChange={(e) => setQuickNote(e.target.value)}
-                  placeholder="Post a quick note..."
+                  placeholder="Share a quick update with staff..."
                   disabled={isQuickSubmitting}
                   className="w-full text-xs sm:text-sm pl-3 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-hidden focus:border-orange-500 focus:bg-white transition-colors"
                 />
@@ -724,13 +727,13 @@ export default function Dashboard({
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#F9FAFB]">
                 <div className="flex items-center gap-2 flex-wrap">
-                  {viewingNotice.type === 'official_notice' ? (
+                  {viewingNotice.type === 'official_notice' || viewingNotice.type === 'notice' ? (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
                       <Megaphone size={12} /> Official Notice
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">
-                      <Pin size={12} /> Staff Note
+                      <MessageSquare size={12} /> Staff Post
                     </span>
                   )}
                   {viewingNotice.department && (
@@ -832,46 +835,16 @@ export default function Dashboard({
               className="relative bg-white shadow-xl w-[95%] sm:w-[500px] md:max-w-xl max-h-[90vh] overflow-y-auto mx-auto rounded-xl flex flex-col"
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#F9FAFB]">
-                <h3 className="text-[16px] font-semibold text-gray-900">Post New Notice</h3>
+                <div className="flex items-center gap-2">
+                  <Megaphone size={18} className="text-amber-600" />
+                  <h3 className="text-[16px] font-semibold text-gray-900">Post Official Notice</h3>
+                </div>
                 <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
                   <X size={18} />
                 </button>
               </div>
 
               <form onSubmit={handleCreateNotice} className="px-6 py-4 space-y-4">
-                {/* Notice Type Selection (if authorized for official notice) */}
-                {canCreateOfficialNotice(currentUser) && (
-                  <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Notice Classification</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setNoticeFormData({ ...noticeFormData, type: 'staff_note' })}
-                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
-                          noticeFormData.type === 'staff_note'
-                            ? 'bg-blue-50 border-blue-400 text-blue-700 ring-2 ring-blue-100'
-                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        <Pin size={14} />
-                        Staff Note
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setNoticeFormData({ ...noticeFormData, type: 'official_notice' })}
-                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
-                          noticeFormData.type === 'official_notice'
-                            ? 'bg-amber-50 border-amber-400 text-amber-800 ring-2 ring-amber-100'
-                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        <Megaphone size={14} />
-                        Official Notice
-                      </button>
-                    </div>
-                  </div>
-                )}
-
                 <div>
                   <label className="block text-[13px] font-medium text-gray-700 mb-1">Title (Optional)</label>
                   <input 
@@ -879,22 +852,9 @@ export default function Dashboard({
                     value={noticeFormData.title} 
                     onChange={e => setNoticeFormData({ ...noticeFormData, title: e.target.value })} 
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900" 
-                    placeholder="e.g. Schedule Update or Maintenance Announcement" 
+                    placeholder="e.g. Office Closure, Policy Update, or All-Staff Meeting" 
                   />
                 </div>
-
-                {noticeFormData.type === 'staff_note' && (
-                  <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1">Target Department (Optional)</label>
-                    <input 
-                      type="text" 
-                      value={noticeFormData.department} 
-                      onChange={e => setNoticeFormData({ ...noticeFormData, department: e.target.value })} 
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900" 
-                      placeholder="e.g. Da'wah, Operations, or leave blank for General" 
-                    />
-                  </div>
-                )}
 
                 <div>
                   <label className="block text-[13px] font-medium text-gray-700 mb-1">Notice Content <span className="text-red-500">*</span></label>
@@ -904,7 +864,7 @@ export default function Dashboard({
                     value={noticeFormData.content} 
                     onChange={e => setNoticeFormData({ ...noticeFormData, content: e.target.value })} 
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900 resize-none" 
-                    placeholder="Write your announcement or note..." 
+                    placeholder="Write your official announcement details here..." 
                   />
                 </div>
 
@@ -920,10 +880,10 @@ export default function Dashboard({
                   <button 
                     type="submit" 
                     disabled={isSubmittingNotice || !noticeFormData.content.trim()}
-                    className="px-4 py-2 text-[13px] font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    className="px-4 py-2 text-[13px] font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {isSubmittingNotice && <Loader2 size={14} className="animate-spin" />}
-                    <span>{noticeFormData.type === 'official_notice' ? 'Publish Notice' : 'Post Note'}</span>
+                    <span>+ Post Notice</span>
                   </button>
                 </div>
               </form>
@@ -953,7 +913,9 @@ export default function Dashboard({
               className="relative bg-white shadow-xl w-[95%] sm:w-[500px] md:max-w-xl max-h-[90vh] overflow-y-auto mx-auto rounded-xl flex flex-col"
             >
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#F9FAFB]">
-                <h3 className="text-[16px] font-semibold text-gray-900">Edit Notice</h3>
+                <h3 className="text-[16px] font-semibold text-gray-900">
+                  {editFormData.type === 'notice' ? 'Edit Official Notice' : 'Edit Staff Post'}
+                </h3>
                 <button 
                   onClick={() => {
                     setIsEditModalOpen(false);
@@ -968,25 +930,25 @@ export default function Dashboard({
               <form onSubmit={handleUpdateNotice} className="px-6 py-4 space-y-4">
                 {canCreateOfficialNotice(currentUser) && (
                   <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Notice Classification</label>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Classification</label>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         type="button"
-                        onClick={() => setEditFormData({ ...editFormData, type: 'staff_note' })}
+                        onClick={() => setEditFormData({ ...editFormData, type: 'post' })}
                         className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
-                          editFormData.type === 'staff_note'
+                          editFormData.type === 'post'
                             ? 'bg-blue-50 border-blue-400 text-blue-700 ring-2 ring-blue-100'
                             : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                         }`}
                       >
-                        <Pin size={14} />
-                        Staff Note
+                        <MessageSquare size={14} />
+                        Staff Post
                       </button>
                       <button
                         type="button"
-                        onClick={() => setEditFormData({ ...editFormData, type: 'official_notice' })}
+                        onClick={() => setEditFormData({ ...editFormData, type: 'notice' })}
                         className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
-                          editFormData.type === 'official_notice'
+                          editFormData.type === 'notice'
                             ? 'bg-amber-50 border-amber-400 text-amber-800 ring-2 ring-amber-100'
                             : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                         }`}
@@ -1007,18 +969,6 @@ export default function Dashboard({
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900" 
                   />
                 </div>
-
-                {editFormData.type === 'staff_note' && (
-                  <div>
-                    <label className="block text-[13px] font-medium text-gray-700 mb-1">Target Department (Optional)</label>
-                    <input 
-                      type="text" 
-                      value={editFormData.department} 
-                      onChange={e => setEditFormData({ ...editFormData, department: e.target.value })} 
-                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900" 
-                    />
-                  </div>
-                )}
 
                 <div>
                   <label className="block text-[13px] font-medium text-gray-700 mb-1">Notice Content <span className="text-red-500">*</span></label>

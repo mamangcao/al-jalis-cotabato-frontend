@@ -64,6 +64,11 @@ export const canCreateOfficialNotice = (user?: Partial<User> | null) => {
   return ['super_admin', 'director', 'admin_director', 'admin', 'hr', 'admin_hr', 'executive_secretary', 'department_head'].includes(user.role || '');
 };
 
+export const canCreateStaffPost = (user?: Partial<User> | null) => {
+  if (!user) return false;
+  return user.account_type !== 'evaluation_only' && user.role !== 'evaluation_only';
+};
+
 export const canCreateStaffNote = (user?: Partial<User> | null) => {
   if (!user) return false;
   return user.account_type !== 'evaluation_only' && user.role !== 'evaluation_only';
