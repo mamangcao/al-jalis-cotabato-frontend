@@ -15,12 +15,14 @@ import {
   Sliders,
   CalendarDays,
   FileText,
-  Lock
+  Lock,
+  Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../AuthContext';
 import { canManagePersonnel } from '../lib/permissions';
 import GlobalPillTabs, { TabItem } from '../components/ui/GlobalPillTabs';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 import { 
   getSystemSettings, 
   fetchSystemSettingsFromApi,
@@ -74,6 +76,13 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
   const [departments, setDepartments] = useState<string[]>(settings.organization.departments);
   const [newDepartmentName, setNewDepartmentName] = useState('');
 
+  const [isResetLeaveModalOpen, setIsResetLeaveModalOpen] = useState(false);
+  const [deptToDelete, setDeptToDelete] = useState<string | null>(null);
+  const [periodToDelete, setPeriodToDelete] = useState<string | null>(null);
+  const [isSavingLeavePolicies, setIsSavingLeavePolicies] = useState(false);
+  const [isSavingRestricted, setIsSavingRestricted] = useState(false);
+  const [isSavingOrg, setIsSavingOrg] = useState(false);
+
   // Keep state synced with external updates and fetch from API
   useEffect(() => {
     fetchSystemSettingsFromApi();
@@ -93,25 +102,33 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
   }, []);
 
   // --- Handlers for Tab 1: Leave Policies ---
-  const handleSaveLeavePolicies = () => {
-    const updated: SystemSettingsData = {
-      ...settings,
-      leavePolicies: {
-        vacationCredits: Number(leavePolicies.vacationCredits) || 0,
-        sickCredits: Number(leavePolicies.sickCredits) || 0,
-        emergencyCredits: Number(leavePolicies.emergencyCredits) || 0,
-        maxConsecutiveVacationDays: Number(leavePolicies.maxConsecutiveVacationDays) || 1,
-        maxStaffOnVacationPerMonth: Number(leavePolicies.maxStaffOnVacationPerMonth) || 1,
-      },
-    };
-    setSettings(updated);
-    saveSystemSettings(updated);
-    toast.success('Leave policies saved successfully!');
+  const handleSaveLeavePolicies = async () => {
+    setIsSavingLeavePolicies(true);
+    try {
+      const updated: SystemSettingsData = {
+        ...settings,
+        leavePolicies: {
+          vacationCredits: Number(leavePolicies.vacationCredits) || 0,
+          sickCredits: Number(leavePolicies.sickCredits) || 0,
+          emergencyCredits: Number(leavePolicies.emergencyCredits) || 0,
+          maxConsecutiveVacationDays: Number(leavePolicies.maxConsecutiveVacationDays) || 1,
+          maxStaffOnVacationPerMonth: Number(leavePolicies.maxStaffOnVacationPerMonth) || 1,
+        },
+      };
+      setSettings(updated);
+      saveSystemSettings(updated);
+      toast.success('Settings updated successfully.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update settings.');
+    } finally {
+      setIsSavingLeavePolicies(false);
+    }
   };
 
-  const handleResetLeavePolicies = () => {
+  const handleConfirmResetLeavePolicies = () => {
     setLeavePolicies(DEFAULT_SYSTEM_SETTINGS.leavePolicies);
-    toast.success('Leave policies reset to standard defaults');
+    setIsResetLeaveModalOpen(false);
+    toast.success('Leave policies reset to standard defaults.');
   };
 
   // --- Handlers for Tab 2: Restricted Periods ---
@@ -133,12 +150,15 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
     );
   };
 
-  const handleDeleteRestrictedPeriod = (id: string) => {
-    setRestrictedPeriods(prev => prev.filter(p => p.id !== id));
-    toast.success('Restricted period removed');
+  const confirmDeleteRestrictedPeriod = () => {
+    if (periodToDelete) {
+      setRestrictedPeriods(prev => prev.filter(p => p.id !== periodToDelete));
+      setPeriodToDelete(null);
+      toast.success('Restricted period removed.');
+    }
   };
 
-  const handleSaveRestrictedPeriods = () => {
+  const handleSaveRestrictedPeriods = async () => {
     // Validate rows
     for (const p of restrictedPeriods) {
       if (!p.title.trim()) {
@@ -155,13 +175,20 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
       }
     }
 
-    const updated: SystemSettingsData = {
-      ...settings,
-      restrictedPeriods,
-    };
-    setSettings(updated);
-    saveSystemSettings(updated);
-    toast.success('Restricted periods updated successfully!');
+    setIsSavingRestricted(true);
+    try {
+      const updated: SystemSettingsData = {
+        ...settings,
+        restrictedPeriods,
+      };
+      setSettings(updated);
+      saveSystemSettings(updated);
+      toast.success('Settings updated successfully.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update settings.');
+    } finally {
+      setIsSavingRestricted(false);
+    }
   };
 
   // --- Handlers for Tab 3: Organization & Departments ---
@@ -180,20 +207,23 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
     const updated = [...departments, trimmed];
     setDepartments(updated);
     setNewDepartmentName('');
-    toast.success(`Department "${trimmed}" added!`);
+    toast.success(`Department "${trimmed}" added.`);
   };
 
-  const handleDeleteDepartment = (deptToDelete: string) => {
+  const confirmDeleteDepartment = () => {
+    if (!deptToDelete) return;
     if (departments.length <= 1) {
       toast.error('At least one department must remain in the organization.');
+      setDeptToDelete(null);
       return;
     }
     const updated = departments.filter(d => d !== deptToDelete);
     setDepartments(updated);
+    setDeptToDelete(null);
     toast.success(`Department "${deptToDelete}" removed.`);
   };
 
-  const handleSaveOrganization = () => {
+  const handleSaveOrganization = async () => {
     if (!companyName.trim()) {
       toast.error('Company Name cannot be empty.');
       return;
@@ -203,17 +233,24 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
       return;
     }
 
-    const updated: SystemSettingsData = {
-      ...settings,
-      organization: {
-        companyName: companyName.trim(),
-        chapter: chapter.trim(),
-        departments,
-      },
-    };
-    setSettings(updated);
-    saveSystemSettings(updated);
-    toast.success('Organization configurations saved successfully!');
+    setIsSavingOrg(true);
+    try {
+      const updated: SystemSettingsData = {
+        ...settings,
+        organization: {
+          companyName: companyName.trim(),
+          chapter: chapter.trim(),
+          departments,
+        },
+      };
+      setSettings(updated);
+      saveSystemSettings(updated);
+      toast.success('Settings updated successfully.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update settings.');
+    } finally {
+      setIsSavingOrg(false);
+    }
   };
 
   return (
@@ -393,9 +430,9 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
 
               <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
                 <button 
-                  type="button"
-                  onClick={handleResetLeavePolicies}
-                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 transition-colors"
+                  type="button" 
+                  onClick={() => setIsResetLeaveModalOpen(true)}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 transition-colors cursor-pointer"
                 >
                   <RotateCcw size={14} />
                   Restore Defaults
@@ -411,9 +448,10 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
             </span>
             <button
               onClick={handleSaveLeavePolicies}
-              className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+              disabled={isSavingLeavePolicies}
+              className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
             >
-              <Save size={16} />
+              {isSavingLeavePolicies ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Save Policies
             </button>
           </div>
@@ -487,7 +525,7 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
                         {/* Red Trash Icon */}
                         <button
                           type="button"
-                          onClick={() => handleDeleteRestrictedPeriod(period.id)}
+                          onClick={() => setPeriodToDelete(period.id)}
                           title="Delete restricted period"
                           className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                         >
@@ -567,9 +605,10 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
               <button
                 type="button"
                 onClick={handleSaveRestrictedPeriods}
-                className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+                disabled={isSavingRestricted}
+                className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
               >
-                <Save size={16} />
+                {isSavingRestricted ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                 Save Restricted Periods
               </button>
             </div>
@@ -643,7 +682,7 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
                     <span>{dept}</span>
                     <button
                       type="button"
-                      onClick={() => handleDeleteDepartment(dept)}
+                      onClick={() => setDeptToDelete(dept)}
                       title={`Remove department "${dept}"`}
                       className="text-gray-400 hover:text-red-600 rounded-full p-0.5 hover:bg-red-50 transition-colors cursor-pointer"
                     >
@@ -685,14 +724,43 @@ export default function SystemSettings({ onNavigate }: SystemSettingsProps) {
             </span>
             <button
               onClick={handleSaveOrganization}
-              className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+              disabled={isSavingOrg}
+              className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
             >
-              <Save size={16} />
+              {isSavingOrg ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Save Organization Settings
             </button>
           </div>
         </div>
       )}
+
+      {/* Confirmation Modals for Destructive Settings Actions */}
+      <DeleteConfirmationModal
+        isOpen={isResetLeaveModalOpen}
+        onClose={() => setIsResetLeaveModalOpen(false)}
+        onConfirm={handleConfirmResetLeavePolicies}
+        title="Restore Default Leave Policies"
+        message="Are you sure you want to restore all leave policies and concurrency limits to standard system defaults? Any custom limits will be overwritten."
+        confirmText="Restore Defaults"
+      />
+
+      <DeleteConfirmationModal
+        isOpen={periodToDelete !== null}
+        onClose={() => setPeriodToDelete(null)}
+        onConfirm={confirmDeleteRestrictedPeriod}
+        title="Delete Restricted Period"
+        message="Are you sure you want to remove this restricted period? Staff will be allowed to submit leave requests during this window."
+        confirmText="Delete Period"
+      />
+
+      <DeleteConfirmationModal
+        isOpen={deptToDelete !== null}
+        onClose={() => setDeptToDelete(null)}
+        onConfirm={confirmDeleteDepartment}
+        title="Remove Department"
+        message={`Are you sure you want to remove the "${deptToDelete}" department? Staff assigned to this department should be reassigned.`}
+        confirmText="Remove Department"
+      />
     </div>
   );
 }

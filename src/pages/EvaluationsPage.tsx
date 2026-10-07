@@ -300,10 +300,7 @@ export default function EvaluationsPage({ members }: EvaluationsPageProps) {
       // Push to submitted targets to instantly remove from dropdown
       setSubmittedTargetIds(prev => [...prev, selectedTargetId]);
 
-      toast.success(
-        `Evaluation submitted anonymously for ${selectedMember ? selectedMember.name : 'colleague'}!`,
-        { icon: '🔒' }
-      );
+      toast.success('Evaluation submitted successfully.', { icon: '🔒' });
 
       // Reset form
       setSelectedTargetId('');

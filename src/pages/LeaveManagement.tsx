@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../AuthContext';
 import toast from 'react-hot-toast';
-import { Plus, X, Eye, CheckCircle2, XCircle, Edit2, Trash2, Lock, AlertTriangle, FileCheck2, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { Plus, X, Eye, CheckCircle2, XCircle, Edit2, Trash2, Lock, AlertTriangle, FileCheck2, ChevronDown, ChevronUp, Info, Loader2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { getSystemSettings, isDateInRestrictedPeriod } from '../utils/systemSettings';
 import { api } from '../services/api';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 const calculateDays = (startDate: string, endDate: string) => {
   if (!startDate || !endDate) return 0;
@@ -22,6 +23,10 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
   const [editingLeaveId, setEditingLeaveId] = useState<string | null>(null);
   const [reviewingLeave, setReviewingLeave] = useState<any>(null);
   const [remarks, setRemarks] = useState('');
+  const [leaveToDelete, setLeaveToDelete] = useState<string | null>(null);
+  const [isDeletingLeave, setIsDeletingLeave] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
 
   const isAdmin = currentUser.role.startsWith('admin');
   const isFinanceAdmin = currentUser.role === 'admin_finance';
@@ -149,6 +154,15 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
                            Boolean(restrictedConflict) ||
                            (!formData.startDate || !formData.returnDate);
 
+  const resetForm = () => {
+    setFormData({
+      employeeName: currentUser.name || '',
+      idNo: '', position: '', contactNo: '', mailingAddress: '',
+      startDate: '', returnDate: '', leaveType: remVacation > 0 ? 'Vacation Leave' : (remSick > 0 ? 'Sick Leave' : 'Emergency Leave'), emergencyReason: '', reason: '', attestation: false,
+      hasPendingTasks: 'No', delegatedTo: '', delegationAttested: false
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (restrictedConflict) {
@@ -161,15 +175,20 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
     }
     if (isSubmitDisabled) return;
 
+    setIsSubmitting(true);
     if (editingLeaveId) {
       try {
         const updated = await api.leaves.update(editingLeaveId, formData);
         setLeaves(leaves.map(l => l.id === editingLeaveId ? { ...l, ...updated } : l));
-      } catch (err) {
-        console.warn('Backend update leave failed, updating locally:', err);
-        setLeaves(leaves.map(l => l.id === editingLeaveId ? { ...l, ...formData } : l));
+        toast.success('Leave request updated successfully.');
+        setIsFormOpen(false);
+        setEditingLeaveId(null);
+        resetForm();
+      } catch (err: any) {
+        toast.error(err.message || 'Unable to update leave request. Please try again.');
+      } finally {
+        setIsSubmitting(false);
       }
-      toast.success('Leave request updated');
     } else {
       const newLeaveData = {
         employeeId: currentUser.id,
@@ -182,25 +201,16 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
       try {
         const created = await api.leaves.create(newLeaveData);
         setLeaves([created, ...leaves]);
-      } catch (err) {
-        console.warn('Backend create leave failed, saving locally:', err);
-        const newLeave = {
-          id: Date.now().toString(),
-          ...newLeaveData
-        };
-        setLeaves([newLeave, ...leaves]);
+        toast.success('Leave request submitted successfully.');
+        setIsFormOpen(false);
+        setEditingLeaveId(null);
+        resetForm();
+      } catch (err: any) {
+        toast.error(err.message || 'Unable to submit leave request. Please try again.');
+      } finally {
+        setIsSubmitting(false);
       }
-      toast.success('Leave of absence filed successfully!');
     }
-    
-    setIsFormOpen(false);
-    setEditingLeaveId(null);
-    setFormData({
-        employeeName: currentUser.name || '',
-        idNo: '', position: '', contactNo: '', mailingAddress: '',
-        startDate: '', returnDate: '', leaveType: remVacation > 0 ? 'Vacation Leave' : (remSick > 0 ? 'Sick Leave' : 'Emergency Leave'), emergencyReason: '', reason: '', attestation: false,
-        hasPendingTasks: 'No', delegatedTo: '', delegationAttested: false
-    });
   };
 
   const handleEdit = (leave: any) => {
@@ -224,51 +234,73 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
     setIsFormOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      await api.leaves.delete(id);
-    } catch (err) {
-      console.warn('Backend delete leave failed, removing locally:', err);
-    }
-    setLeaves(leaves.filter(l => l.id !== id));
-    toast.success('Leave request deleted');
+  const handleDelete = (id: string) => {
+    setLeaveToDelete(id);
   };
 
+  const confirmDeleteLeave = async () => {
+    if (!leaveToDelete) return;
+    setIsDeletingLeave(true);
+    try {
+      await api.leaves.delete(leaveToDelete);
+      setLeaves(leaves.filter(l => l.id !== leaveToDelete));
+      toast.success('Leave request deleted successfully.');
+      setLeaveToDelete(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Unable to delete leave request. Please try again.');
+    } finally {
+      setIsDeletingLeave(false);
+    }
+  };
 
   const handleFinanceAction = async (status: string) => {
+    if (status === 'Rejected' && !remarks.trim()) {
+      toast.error('Please provide remarks/reason for rejection.');
+      return;
+    }
+    setIsReviewing(true);
     const updatedApproval = { ...reviewingLeave.approval, finance: status };
     const updatedRemarks = status === 'Rejected' ? remarks : reviewingLeave.remarks;
     try {
       await api.leaves.update(reviewingLeave.id, { approval: updatedApproval, remarks: updatedRemarks });
-    } catch (err) {
-      console.warn('Backend update approval failed, updating locally:', err);
+      setLeaves(leaves.map(l => l.id === reviewingLeave.id ? { 
+        ...l, 
+        approval: updatedApproval,
+        remarks: updatedRemarks
+      } : l));
+      toast.success(status === 'Approved' ? 'Leave request approved.' : 'Leave request rejected.');
+      setReviewingLeave(null);
+      setRemarks('');
+    } catch (err: any) {
+      toast.error(err.message || 'Unable to update leave request.');
+    } finally {
+      setIsReviewing(false);
     }
-    setLeaves(leaves.map(l => l.id === reviewingLeave.id ? { 
-      ...l, 
-      approval: updatedApproval,
-      remarks: updatedRemarks
-    } : l));
-    toast.success(`Leave request ${status.toLowerCase()} by Finance!`);
-    setReviewingLeave(null);
-    setRemarks('');
   };
 
   const handleDirectorAction = async (status: string) => {
+    if (status === 'Rejected' && !remarks.trim()) {
+      toast.error('Please provide remarks/reason for rejection.');
+      return;
+    }
+    setIsReviewing(true);
     const updatedApproval = { ...reviewingLeave.approval, director: status };
     const updatedRemarks = remarks ? remarks : reviewingLeave.remarks;
     try {
       await api.leaves.update(reviewingLeave.id, { approval: updatedApproval, remarks: updatedRemarks });
-    } catch (err) {
-      console.warn('Backend update approval failed, updating locally:', err);
+      setLeaves(leaves.map(l => l.id === reviewingLeave.id ? { 
+        ...l, 
+        approval: updatedApproval,
+        remarks: updatedRemarks
+      } : l));
+      toast.success(status === 'Approved' ? 'Leave request approved.' : 'Leave request rejected.');
+      setReviewingLeave(null);
+      setRemarks('');
+    } catch (err: any) {
+      toast.error(err.message || 'Unable to update leave request.');
+    } finally {
+      setIsReviewing(false);
     }
-    setLeaves(leaves.map(l => l.id === reviewingLeave.id ? { 
-      ...l, 
-      approval: updatedApproval,
-      remarks: updatedRemarks
-    } : l));
-    toast.success(`Leave request ${status.toLowerCase()} by Director!`);
-    setReviewingLeave(null);
-    setRemarks('');
   };
 
   const getStatusIcon = (status: string) => {
@@ -681,15 +713,29 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
                   </div>
                 </div>
                 <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 shrink-0 flex justify-end gap-3 rounded-b-xl">
-                      <button type="button" onClick={() => { setIsFormOpen(false); setEditingLeaveId(null); }} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                      <button 
+                        type="button" 
+                        onClick={() => { setIsFormOpen(false); setEditingLeaveId(null); }} 
+                        disabled={isSubmitting}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
                       <button 
                         type="submit" 
-                        disabled={isSubmitDisabled}
-                        className={`px-4 py-2 text-sm font-medium text-white border border-transparent rounded-lg transition-colors ${
-                          isSubmitDisabled ? 'bg-gray-400 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 shadow-sm'
+                        disabled={isSubmitDisabled || isSubmitting}
+                        className={`px-4 py-2 text-sm font-medium text-white border border-transparent rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer ${
+                          isSubmitDisabled || isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-600 shadow-sm'
                         }`}
                       >
-                        {editingLeaveId ? 'Update Request' : 'Submit Request'}
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" />
+                            <span>{editingLeaveId ? 'Updating...' : 'Submitting...'}</span>
+                          </>
+                        ) : (
+                          <span>{editingLeaveId ? 'Update Request' : 'Submit Request'}</span>
+                        )}
                       </button>
                   </div>
               </form>
@@ -747,15 +793,34 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
                   
               </div>
               <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 shrink-0 flex justify-end gap-3 rounded-b-xl">
-                      <button type="button" onClick={() => setReviewingLeave(null)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Close</button>
+                      <button 
+                        type="button" 
+                        onClick={() => setReviewingLeave(null)} 
+                        disabled={isReviewing}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer disabled:opacity-50"
+                      >
+                        Close
+                      </button>
                       
                       {isFinanceAdmin && reviewingLeave.approval?.finance === 'Pending' && (
                         <>
-                          <button onClick={() => handleFinanceAction('Rejected')} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rose-600 border border-transparent rounded-lg hover:bg-rose-700 shadow-sm">
-                            <XCircle size={16}/> Reject
+                          <button 
+                            type="button"
+                            onClick={() => handleFinanceAction('Rejected')} 
+                            disabled={isReviewing}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rose-600 border border-transparent rounded-lg hover:bg-rose-700 shadow-sm cursor-pointer disabled:opacity-60"
+                          >
+                            {isReviewing ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16}/>}
+                            Reject
                           </button>
-                          <button onClick={() => handleFinanceAction('Approved')} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 shadow-sm">
-                            <FileCheck2 size={16}/> Validate
+                          <button 
+                            type="button"
+                            onClick={() => handleFinanceAction('Approved')} 
+                            disabled={isReviewing}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 shadow-sm cursor-pointer disabled:opacity-60"
+                          >
+                            {isReviewing ? <Loader2 size={16} className="animate-spin" /> : <FileCheck2 size={16}/>}
+                            Validate
                           </button>
                         </>
                       )}
@@ -763,20 +828,24 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
                       {isDirectorAdmin && reviewingLeave.approval?.director === 'Pending' && (
                         <>
                           <button 
+                            type="button"
                             onClick={() => handleDirectorAction('Rejected')} 
-                            disabled={reviewingLeave.approval?.finance !== 'Approved'}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border border-transparent rounded-lg shadow-sm ${reviewingLeave.approval?.finance !== 'Approved' ? 'bg-gray-400 cursor-not-allowed' : 'bg-rose-600 hover:bg-rose-700'}`}
+                            disabled={reviewingLeave.approval?.finance !== 'Approved' || isReviewing}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border border-transparent rounded-lg shadow-sm cursor-pointer ${reviewingLeave.approval?.finance !== 'Approved' || isReviewing ? 'bg-gray-400 cursor-not-allowed opacity-60' : 'bg-rose-600 hover:bg-rose-700'}`}
                             title={reviewingLeave.approval?.finance !== 'Approved' ? "Waiting for Finance Validation" : ""}
                           >
-                            <XCircle size={16}/> Reject
+                            {isReviewing ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16}/>}
+                            Reject
                           </button>
                           <button 
+                            type="button"
                             onClick={() => handleDirectorAction('Approved')} 
-                            disabled={reviewingLeave.approval?.finance !== 'Approved'}
-                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border border-transparent rounded-lg shadow-sm ${reviewingLeave.approval?.finance !== 'Approved' ? 'bg-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                            disabled={reviewingLeave.approval?.finance !== 'Approved' || isReviewing}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border border-transparent rounded-lg shadow-sm cursor-pointer ${reviewingLeave.approval?.finance !== 'Approved' || isReviewing ? 'bg-gray-400 cursor-not-allowed opacity-60' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                             title={reviewingLeave.approval?.finance !== 'Approved' ? "Waiting for Finance Validation" : ""}
                           >
-                            <CheckCircle2 size={16}/> Final Approve
+                            {isReviewing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16}/>}
+                            Final Approve
                           </button>
                         </>
                       )}
@@ -785,6 +854,15 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
         </div>,
         document.body
       )}
+
+      <DeleteConfirmationModal
+        isOpen={!!leaveToDelete}
+        onClose={() => setLeaveToDelete(null)}
+        onConfirm={confirmDeleteLeave}
+        title="Delete Leave Request?"
+        message="Are you sure you want to delete this leave request? This action cannot be undone."
+        isDeleting={isDeletingLeave}
+      />
     </div>
   );
 }

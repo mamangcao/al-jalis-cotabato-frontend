@@ -593,6 +593,18 @@ function MainApp() {
 export default function App() {
   return (
     <AuthProvider>
+      <Toaster 
+        position="top-right" 
+        toastOptions={{ 
+          duration: 4000,
+          style: { 
+            fontSize: '13px', 
+            borderRadius: '10px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+            maxWidth: '420px',
+          } 
+        }} 
+      />
       <MainApp />
     </AuthProvider>
   );

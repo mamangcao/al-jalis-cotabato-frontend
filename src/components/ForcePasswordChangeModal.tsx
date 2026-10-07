@@ -40,7 +40,7 @@ export default function ForcePasswordChangeModal() {
         must_change_password: false,
       });
 
-      toast.success('Password updated successfully! Welcome to the portal.');
+      toast.success('Password changed successfully.');
     } catch (err: any) {
       const msg = err.message || 'Failed to update password. Please verify your current password.';
       setError(msg);

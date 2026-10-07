@@ -52,7 +52,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         ...currentUser,
         name: updated.name,
       });
-      toast.success('Profile updated successfully!');
+      toast.success('Profile updated successfully.');
     } catch (err: any) {
       toast.error(err.message || 'Failed to update profile');
     } finally {

@@ -3,7 +3,7 @@ import { canManageFinance } from '../lib/permissions';
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
-import { Target, TrendingUp, TrendingDown, DollarSign, Plus, X, Search, Edit2, Trash2, Printer, Download, Receipt, HeartHandshake } from 'lucide-react';
+import { Target, TrendingUp, TrendingDown, DollarSign, Plus, X, Search, Edit2, Trash2, Printer, Download, Receipt, HeartHandshake, Loader2 } from 'lucide-react';
 import Tilt from '../components/Tilt';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
@@ -56,6 +56,11 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
 
   const [editingDonation, setEditingDonation] = useState<any>(null);
   const [donationToDelete, setDonationToDelete] = useState<string | null>(null);
+
+  const [isSubmittingDonation, setIsSubmittingDonation] = useState(false);
+  const [isDeletingDonation, setIsDeletingDonation] = useState(false);
+  const [isSubmittingCampaign, setIsSubmittingCampaign] = useState(false);
+  const [isDeletingCampaign, setIsDeletingCampaign] = useState(false);
 
   const printRef = useRef<HTMLDivElement>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -174,43 +179,52 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
       paymentMethod: formData.paymentMethod || 'Cash'
     };
 
-    if (editingDonation) {
-      try {
-        const updated = await api.donations.update(editingDonation.id, donationPayload);
-        setDonations(donations.map(d => d.id === editingDonation.id ? { ...d, ...updated } : d));
-      } catch (err) {
-        console.warn('Backend update donation failed, updating locally:', err);
-        setDonations(donations.map(d => 
-          d.id === editingDonation.id 
-            ? { ...d, ...donationPayload } 
-            : d
-        ));
+    setIsSubmittingDonation(true);
+    try {
+      if (editingDonation) {
+        try {
+          const updated = await api.donations.update(editingDonation.id, donationPayload);
+          setDonations(donations.map(d => d.id === editingDonation.id ? { ...d, ...updated } : d));
+        } catch (err) {
+          console.warn('Backend update donation failed, updating locally:', err);
+          setDonations(donations.map(d => 
+            d.id === editingDonation.id 
+              ? { ...d, ...donationPayload } 
+              : d
+          ));
+        }
+        toast.success("Donation updated successfully.");
+      } else {
+        try {
+          const created = await api.donations.create(donationPayload);
+          setDonations([created, ...donations]);
+        } catch (err) {
+          console.warn('Backend create donation failed, saving locally:', err);
+          const newDonation = {
+            id: 'd' + Date.now(),
+            ...donationPayload
+          };
+          setDonations([newDonation, ...donations]);
+        }
+        toast.success("Donation recorded successfully.");
       }
-    } else {
-      try {
-        const created = await api.donations.create(donationPayload);
-        setDonations([created, ...donations]);
-      } catch (err) {
-        console.warn('Backend create donation failed, saving locally:', err);
-        const newDonation = {
-          id: 'd' + Date.now(),
-          ...donationPayload
-        };
-        setDonations([newDonation, ...donations]);
-      }
-    }
 
-    setIsAddModalOpen(false);
-    setEditingDonation(null);
-    setFormData({
-      donorName: '',
-      isAnonymous: false,
-      amount: '',
-      category: 'Zakat',
-      campaignId: 'none',
-      paymentMethod: 'Cash',
-      date: new Date().toISOString().split('T')[0]
-    });
+      setIsAddModalOpen(false);
+      setEditingDonation(null);
+      setFormData({
+        donorName: '',
+        isAnonymous: false,
+        amount: '',
+        category: 'Zakat',
+        campaignId: 'none',
+        paymentMethod: 'Cash',
+        date: new Date().toISOString().split('T')[0]
+      });
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to save donation.");
+    } finally {
+      setIsSubmittingDonation(false);
+    }
   };
 
   const handleEditDonation = (donation: any) => {
@@ -233,14 +247,21 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
       return;
     }
     if (donationToDelete) {
+      setIsDeletingDonation(true);
       try {
-        await api.donations.delete(donationToDelete);
-      } catch (err) {
-        console.warn('Backend delete donation failed, removing locally:', err);
+        try {
+          await api.donations.delete(donationToDelete);
+        } catch (err) {
+          console.warn('Backend delete donation failed, removing locally:', err);
+        }
+        setDonations(donations.filter(d => d.id !== donationToDelete));
+        setDonationToDelete(null);
+        toast.success('Donation deleted successfully.');
+      } catch (error: any) {
+        toast.error(error?.message || 'Failed to delete donation.');
+      } finally {
+        setIsDeletingDonation(false);
       }
-      setDonations(donations.filter(d => d.id !== donationToDelete));
-      setDonationToDelete(null);
-      toast.success('Donation deleted successfully!');
     }
   };
 
@@ -258,40 +279,49 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
       category: campaignFormData.category
     };
     
-    if (editingCampaign) {
-      try {
-        const updated = await api.campaigns.update(editingCampaign.id, campaignPayload);
-        setCampaigns(campaigns.map(c => c.id === editingCampaign.id ? { ...c, ...updated } : c));
-      } catch (err) {
-        console.warn('Backend update campaign failed, updating locally:', err);
-        setCampaigns(campaigns.map(c => 
-          c.id === editingCampaign.id 
-            ? { ...c, ...campaignPayload }
-            : c
-        ));
+    setIsSubmittingCampaign(true);
+    try {
+      if (editingCampaign) {
+        try {
+          const updated = await api.campaigns.update(editingCampaign.id, campaignPayload);
+          setCampaigns(campaigns.map(c => c.id === editingCampaign.id ? { ...c, ...updated } : c));
+        } catch (err) {
+          console.warn('Backend update campaign failed, updating locally:', err);
+          setCampaigns(campaigns.map(c => 
+            c.id === editingCampaign.id 
+              ? { ...c, ...campaignPayload }
+              : c
+          ));
+        }
+        toast.success('Campaign updated successfully.');
+      } else {
+        try {
+          const created = await api.campaigns.create(campaignPayload);
+          setCampaigns([created, ...campaigns]);
+        } catch (err) {
+          console.warn('Backend create campaign failed, saving locally:', err);
+          const newCampaign = {
+            id: 'c' + Date.now(),
+            ...campaignPayload
+          };
+          setCampaigns([newCampaign, ...campaigns]);
+        }
+        toast.success('Campaign created successfully.');
       }
-    } else {
-      try {
-        const created = await api.campaigns.create(campaignPayload);
-        setCampaigns([created, ...campaigns]);
-      } catch (err) {
-        console.warn('Backend create campaign failed, saving locally:', err);
-        const newCampaign = {
-          id: 'c' + Date.now(),
-          ...campaignPayload
-        };
-        setCampaigns([newCampaign, ...campaigns]);
-      }
+      
+      setIsCampaignModalOpen(false);
+      setEditingCampaign(null);
+      setCampaignFormData({
+        title: '',
+        description: '',
+        goalAmount: '',
+        category: 'Zakat'
+      });
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to save campaign.');
+    } finally {
+      setIsSubmittingCampaign(false);
     }
-    
-    setIsCampaignModalOpen(false);
-    setEditingCampaign(null);
-    setCampaignFormData({
-      title: '',
-      description: '',
-      goalAmount: '',
-      category: 'Zakat'
-    });
   };
 
   const handleEditCampaign = (campaign: any) => {
@@ -311,13 +341,21 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
       return;
     }
     if (campaignToDelete) {
+      setIsDeletingCampaign(true);
       try {
-        await api.campaigns.delete(campaignToDelete);
-      } catch (err) {
-        console.warn('Backend delete campaign failed, removing locally:', err);
+        try {
+          await api.campaigns.delete(campaignToDelete);
+        } catch (err) {
+          console.warn('Backend delete campaign failed, removing locally:', err);
+        }
+        setCampaigns(campaigns.filter(c => c.id !== campaignToDelete));
+        setCampaignToDelete(null);
+        toast.success('Campaign deleted successfully.');
+      } catch (error: any) {
+        toast.error(error?.message || 'Failed to delete campaign.');
+      } finally {
+        setIsDeletingCampaign(false);
       }
-      setCampaigns(campaigns.filter(c => c.id !== campaignToDelete));
-      setCampaignToDelete(null);
     }
   };
 
@@ -757,8 +795,10 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
               <button 
                 type="submit" 
                 form="donation-form"
-                className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-all hover:opacity-90 active:scale-[0.97] cursor-pointer"
+                disabled={isSubmittingDonation}
+                className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all hover:opacity-90 active:scale-[0.97] cursor-pointer flex items-center gap-2"
               >
+                {isSubmittingDonation && <Loader2 size={16} className="animate-spin" />}
                 {editingDonation ? 'Update Donation' : 'Save Donation'}
               </button>
             </div>
@@ -845,9 +885,11 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
               <button 
                 type="submit" 
                 form="campaign-form"
-                className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-all hover:opacity-90 active:scale-[0.97] cursor-pointer"
+                disabled={isSubmittingCampaign}
+                className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all hover:opacity-90 active:scale-[0.97] cursor-pointer flex items-center gap-2"
               >
-                Save Campaign
+                {isSubmittingCampaign && <Loader2 size={16} className="animate-spin" />}
+                {editingCampaign ? 'Update Campaign' : 'Save Campaign'}
               </button>
             </div>
           </div>
@@ -860,6 +902,7 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
         onConfirm={confirmDeleteCampaign}
         title="Delete Campaign"
         message="Are you sure you want to delete this campaign? The donations associated with it will remain in history."
+        isDeleting={isDeletingCampaign}
       />
 
       <DeleteConfirmationModal
@@ -868,6 +911,7 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
         onConfirm={confirmDeleteDonation}
         title="Delete Donation Record"
         message="Are you sure you want to delete this donation record? This will decrement any associated campaign's total."
+        isDeleting={isDeletingDonation}
       />
     </div>
   );

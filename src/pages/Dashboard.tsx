@@ -57,11 +57,12 @@ export default function Dashboard({ reverts = [], events = [], tasks = [], onNav
     if (!newNotice.trim()) return;
     setNotices([{
       id: Date.now(),
-      text: newNotice,
-      author: 'Admin User',
+      text: newNotice.trim(),
+      author: currentUser?.name || 'Staff User',
       time: 'Just now'
     }, ...notices]);
     setNewNotice('');
+    toast.success('Notice posted successfully.');
   };
 
   const summaryData = useMemo(() => {

@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { canManagePersonnel, canProvisionAccounts, canAccessDirectory } from '../lib/permissions';
 import { DEPARTMENTS } from '../utils/constants';
 import { getStoredDepartments } from '../utils/systemSettings';
-import { Briefcase, CheckSquare, Users, Phone, Mail, Plus, Edit2, Trash2, X, Search, Filter, UserPlus, ShieldAlert } from 'lucide-react';
+import { Briefcase, CheckSquare, Users, Phone, Mail, Plus, Edit2, Trash2, X, Search, Filter, UserPlus, ShieldAlert, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 import TaskBoard from '../components/TaskBoard';
@@ -92,6 +92,8 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
   const [isProvisionModalOpen, setIsProvisionModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
+  const [isSubmittingMember, setIsSubmittingMember] = useState(false);
+  const [isDeletingMember, setIsDeletingMember] = useState(false);
   const [activeTab, setActiveTab] = useState('center_staff');
   const [searchQuery, setSearchQuery] = useState('');
   const [officerSearchQuery, setOfficerSearchQuery] = useState('');
@@ -142,13 +144,21 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
       return; 
     }
     if (memberToDelete) {
+      setIsDeletingMember(true);
       try {
-        await api.members.delete(memberToDelete);
-      } catch (err) {
-        console.warn('Backend delete member failed, removing locally:', err);
+        try {
+          await api.members.delete(memberToDelete);
+        } catch (err) {
+          console.warn('Backend delete member failed, removing locally:', err);
+        }
+        setMembers(prev => prev.filter(m => m.id !== memberToDelete));
+        setMemberToDelete(null);
+        toast.success("Member deleted successfully.");
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to delete member.");
+      } finally {
+        setIsDeletingMember(false);
       }
-      setMembers(prev => prev.filter(m => m.id !== memberToDelete));
-      setMemberToDelete(null);
     }
   };
 
@@ -158,24 +168,33 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
       toast.error("Unauthorized: HR or Admin access required.");
       return; 
     }
-    if (editingMember) {
-      try {
-        const updated = await api.members.update(editingMember.id, formData);
-        setMembers(prev => prev.map(m => m.id === editingMember.id ? { ...m, ...updated } : m));
-      } catch (err) {
-        console.warn('Backend update member failed, updating locally:', err);
-        setMembers(prev => prev.map(m => m.id === editingMember.id ? { ...formData, id: m.id } : m));
+    setIsSubmittingMember(true);
+    try {
+      if (editingMember) {
+        try {
+          const updated = await api.members.update(editingMember.id, formData);
+          setMembers(prev => prev.map(m => m.id === editingMember.id ? { ...m, ...updated } : m));
+        } catch (err) {
+          console.warn('Backend update member failed, updating locally:', err);
+          setMembers(prev => prev.map(m => m.id === editingMember.id ? { ...formData, id: m.id } : m));
+        }
+        toast.success("Member updated successfully.");
+      } else {
+        try {
+          const created = await api.members.create(formData);
+          setMembers(prev => [...prev, created]);
+        } catch (err) {
+          console.warn('Backend create member failed, saving locally:', err);
+          setMembers(prev => [...prev, { ...formData, id: Date.now().toString() }]);
+        }
+        toast.success("Member added successfully.");
       }
-    } else {
-      try {
-        const created = await api.members.create(formData);
-        setMembers(prev => [...prev, created]);
-      } catch (err) {
-        console.warn('Backend create member failed, saving locally:', err);
-        setMembers(prev => [...prev, { ...formData, id: Date.now().toString() }]);
-      }
+      setIsModalOpen(false);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to save member.");
+    } finally {
+      setIsSubmittingMember(false);
     }
-    setIsModalOpen(false);
   };
 
   const officers = members.filter(m => m.type === 'Officer');
@@ -741,8 +760,10 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                 <button 
                   type="submit" 
                   form="member-form" 
-                  className="px-4 py-2 text-[14px] font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-sm transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] cursor-pointer"
+                  disabled={isSubmittingMember}
+                  className="px-4 py-2 text-[14px] font-semibold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] cursor-pointer flex items-center gap-2"
                 >
+                  {isSubmittingMember && <Loader2 size={16} className="animate-spin" />}
                   {editingMember ? 'Save Changes' : 'Save Member'}
                 </button>
               )}
@@ -757,6 +778,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
         onConfirm={confirmDelete}
         title="Remove Member"
         message="Are you sure you want to remove this member? This action cannot be undone."
+        isDeleting={isDeletingMember}
       />
 
       <ProvisionUserModal

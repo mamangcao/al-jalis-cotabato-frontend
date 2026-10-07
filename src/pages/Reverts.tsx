@@ -3,7 +3,7 @@ import { initialMembers } from '../data';
 import React, { useState, useMemo, useRef } from 'react';
 import GlobalPillTabs from '../components/ui/GlobalPillTabs';
 import { differenceInYears, isAfter, isBefore, startOfDay, endOfDay, startOfYear, startOfMonth } from 'date-fns';
-import { Search, Plus, Filter, MoreHorizontal, X, TrendingUp, TrendingDown, Minus, Printer, Edit2, Download, Trash2, Users } from 'lucide-react';
+import { Search, Plus, Filter, MoreHorizontal, X, TrendingUp, TrendingDown, Minus, Printer, Edit2, Download, Trash2, Users, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
@@ -162,6 +162,8 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
   const [editingId, setEditingId] = useState<string | null>(null);
   const [printRevert, setPrintRevert] = useState<any>(null);
   const [revertToDelete, setRevertToDelete] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleOpenPrintModal = (revert: any) => {
     setPrintRevert(revert);
@@ -179,13 +181,21 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
 
   const confirmDeleteRevert = async () => {
     if (revertToDelete) {
+      setIsDeleting(true);
       try {
-        await api.reverts.delete(revertToDelete);
-      } catch (err) {
-        console.warn('Backend delete failed, updated locally:', err);
+        try {
+          await api.reverts.delete(revertToDelete);
+        } catch (err) {
+          console.warn('Backend delete failed, updated locally:', err);
+        }
+        setReverts(reverts.filter((r) => r.id !== revertToDelete));
+        setRevertToDelete(null);
+        toast.success("Revert deleted successfully.");
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to delete revert.");
+      } finally {
+        setIsDeleting(false);
       }
-      setReverts(reverts.filter((r) => r.id !== revertToDelete));
-      setRevertToDelete(null);
     }
   };
 
@@ -241,29 +251,38 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingId) {
-      try {
-        const updated = await api.reverts.update(editingId, formData);
-        setReverts(reverts.map(r => r.id === editingId ? { ...r, ...updated } : r));
-      } catch (err) {
-        console.warn('Backend update failed, updated locally:', err);
-        setReverts(reverts.map(r => r.id === editingId ? { ...formData, id: editingId } : r));
+    setIsSubmitting(true);
+    try {
+      if (editingId) {
+        try {
+          const updated = await api.reverts.update(editingId, formData);
+          setReverts(reverts.map(r => r.id === editingId ? { ...r, ...updated } : r));
+        } catch (err) {
+          console.warn('Backend update failed, updated locally:', err);
+          setReverts(reverts.map(r => r.id === editingId ? { ...formData, id: editingId } : r));
+        }
+        toast.success("Revert updated successfully.");
+      } else {
+        try {
+          const created = await api.reverts.create(formData);
+          setReverts([created, ...reverts]);
+        } catch (err) {
+          console.warn('Backend create failed, saved locally:', err);
+          const newRevert = {
+            id: String(1000 + reverts.length + 1),
+            createdAt: new Date().toISOString(),
+            ...formData
+          };
+          setReverts([newRevert, ...reverts]);
+        }
+        toast.success("Revert created successfully.");
       }
-    } else {
-      try {
-        const created = await api.reverts.create(formData);
-        setReverts([created, ...reverts]);
-      } catch (err) {
-        console.warn('Backend create failed, saved locally:', err);
-        const newRevert = {
-          id: String(1000 + reverts.length + 1),
-          createdAt: new Date().toISOString(),
-          ...formData
-        };
-        setReverts([newRevert, ...reverts]);
-      }
+      handleCloseModal();
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to save revert.");
+    } finally {
+      setIsSubmitting(false);
     }
-    handleCloseModal();
   };
 
   const statData = useMemo(() => {
@@ -854,7 +873,13 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
                 <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-[14px] font-semibold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors cursor-pointer hover:opacity-80">
                   Cancel
                 </button>
-                <button type="submit" form="add-form" disabled={!isCertified} className="px-4 py-2 text-[14px] font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] hover:shadow-md">
+                <button 
+                  type="submit" 
+                  form="add-form" 
+                  disabled={!isCertified || isSubmitting} 
+                  className="px-4 py-2 text-[14px] font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] hover:shadow-md flex items-center gap-2"
+                >
+                  {isSubmitting && <Loader2 size={16} className="animate-spin" />}
                   {editingId ? 'Save Changes' : 'Save Record'}
                 </button>
               </div>
@@ -876,6 +901,7 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
         onConfirm={confirmDeleteRevert}
         title="Delete Revert Record"
         message="WARNING: Are you sure you want to permanently delete this revert record? This action cannot be undone."
+        isDeleting={isDeleting}
       />
     </>
   );

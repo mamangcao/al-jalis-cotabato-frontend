@@ -2,7 +2,7 @@ import toast from 'react-hot-toast';
 import { canManageOperations } from '../lib/permissions';
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
-import { Plus, X, ClipboardList, Edit2, Trash2, Archive } from 'lucide-react';
+import { Plus, X, ClipboardList, Edit2, Trash2, Archive, Loader2 } from 'lucide-react';
 import EmptyState from './EmptyState';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import { createPortal } from 'react-dom';
@@ -42,6 +42,9 @@ export default function TaskBoard({ members, tasks, setTasks }: TaskBoardProps) 
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const [isClearDoneModalOpen, setIsClearDoneModalOpen] = useState(false);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
+  const [isClearingDone, setIsClearingDone] = useState(false);
+  const [isSubmittingTask, setIsSubmittingTask] = useState(false);
   const [departmentFilter, setDepartmentFilter] = useState('All Departments');
   const [assigneeFilter, setAssigneeFilter] = useState('Everyone');
   
@@ -78,11 +81,18 @@ export default function TaskBoard({ members, tasks, setTasks }: TaskBoardProps) 
   const handleDrop = async (e: React.DragEvent, status: Status) => {
     e.preventDefault();
     if (draggedTaskId) {
+      const originalTasks = [...tasks];
       setTasks(tasks.map(t => t.id === draggedTaskId ? { ...t, status } : t));
       try {
         await api.tasks.update(draggedTaskId, { status });
-      } catch (err) {
-        console.warn('Backend task status update failed:', err);
+        if (status === 'done') {
+          toast.success('Task marked as completed.');
+        } else {
+          toast.success(`Task moved to ${status === 'todo' ? 'To Do' : 'In Progress'}.`);
+        }
+      } catch (err: any) {
+        setTasks(originalTasks);
+        toast.error(err.message || 'Unable to update task status.');
       }
     }
     setDraggedTaskId(null);
@@ -99,27 +109,34 @@ export default function TaskBoard({ members, tasks, setTasks }: TaskBoardProps) 
          toast.error("Unauthorized: You can only edit tasks you created or are assigned to.");
          return;
       }
+      setIsSubmittingTask(true);
       try {
         const updated = await api.tasks.update(editingTask.id, formData);
         setTasks(tasks.map(t => t.id === editingTask.id ? { ...t, ...updated } : t));
-      } catch (err) {
-        console.warn('Backend task update failed, updating locally:', err);
-        setTasks(tasks.map(t => t.id === editingTask.id ? { ...t, ...formData } : t));
+        toast.success('Task updated successfully.');
+        setIsModalOpen(false);
+        setEditingTask(null);
+        setFormData({ title: '', description: '', priority: 'Medium', assignee: '', department: 'Admin' });
+      } catch (err: any) {
+        toast.error(err.message || 'Unable to update task. Please try again.');
+      } finally {
+        setIsSubmittingTask(false);
       }
-      toast.success('Task updated successfully!');
     } else {
+      setIsSubmittingTask(true);
       try {
         const created = await api.tasks.create({ ...formData, status: 'todo' });
         setTasks([...tasks, created]);
-      } catch (err) {
-        console.warn('Backend task create failed, saving locally:', err);
-        setTasks([...tasks, { ...formData, id: Date.now().toString(), status: 'todo', createdBy: currentUser.id }]);
+        toast.success('Task created successfully.');
+        setIsModalOpen(false);
+        setEditingTask(null);
+        setFormData({ title: '', description: '', priority: 'Medium', assignee: '', department: 'Admin' });
+      } catch (err: any) {
+        toast.error(err.message || 'Unable to create task. Please try again.');
+      } finally {
+        setIsSubmittingTask(false);
       }
-      toast.success('Task added successfully!');
     }
-    setIsModalOpen(false);
-    setEditingTask(null);
-    setFormData({ title: '', description: '', priority: 'Medium', assignee: '', department: 'Admin' });
   };
 
   const handleEdit = (e: React.MouseEvent, task: Task) => {
@@ -146,20 +163,26 @@ export default function TaskBoard({ members, tasks, setTasks }: TaskBoardProps) 
 
   const confirmDelete = async () => {
     if (taskToDelete) {
+      setIsDeletingTask(true);
       try {
         await api.tasks.delete(taskToDelete);
-      } catch (err) {
-        console.warn('Backend task delete failed, deleting locally:', err);
+        setTasks(tasks.filter(t => t.id !== taskToDelete));
+        toast.success('Task deleted successfully.');
+        setTaskToDelete(null);
+      } catch (err: any) {
+        toast.error(err.message || 'Unable to delete task.');
+      } finally {
+        setIsDeletingTask(false);
       }
-      setTasks(tasks.filter(t => t.id !== taskToDelete));
-      setTaskToDelete(null);
-      toast.success('Task deleted successfully!');
     }
   };
 
   const confirmClearDone = () => {
+    setIsClearingDone(true);
     setTasks(tasks.filter(t => t.status !== 'done'));
     setIsClearDoneModalOpen(false);
+    setIsClearingDone(false);
+    toast.success('Completed tasks cleared successfully.');
   };
 
   const visibleTasks = currentUser.role.startsWith('admin') ? tasks : tasks.filter(task => task.assignee === currentUser.id);
@@ -383,16 +406,27 @@ export default function TaskBoard({ members, tasks, setTasks }: TaskBoardProps) 
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50 rounded-b-2xl">
               <button 
-                type="button" onClick={() => { setIsModalOpen(false); setEditingTask(null); }} 
-                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-all hover:opacity-80 active:scale-[0.97]"
+                type="button" 
+                onClick={() => { setIsModalOpen(false); setEditingTask(null); }} 
+                disabled={isSubmittingTask}
+                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-all hover:opacity-80 active:scale-[0.97] cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button 
-                type="submit" form="task-form" 
-                className="px-4 py-2 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-sm transition-all hover:opacity-90 active:scale-[0.97]"
+                type="submit" 
+                form="task-form" 
+                disabled={isSubmittingTask}
+                className="px-4 py-2 text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg shadow-sm transition-all hover:opacity-90 active:scale-[0.97] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 min-w-[110px]"
               >
-                {editingTask ? "Update Task" : "Save Task"}
+                {isSubmittingTask ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>{editingTask ? "Updating..." : "Saving..."}</span>
+                  </>
+                ) : (
+                  <span>{editingTask ? "Update Task" : "Save Task"}</span>
+                )}
               </button>
             </div>
           </div>
@@ -405,6 +439,7 @@ export default function TaskBoard({ members, tasks, setTasks }: TaskBoardProps) 
         onConfirm={confirmDelete}
         title="Delete Task"
         message="Are you sure you want to delete this task? This action cannot be undone."
+        isDeleting={isDeletingTask}
       />
 
       <DeleteConfirmationModal
@@ -413,6 +448,8 @@ export default function TaskBoard({ members, tasks, setTasks }: TaskBoardProps) 
         onConfirm={confirmClearDone}
         title="Clear Completed Tasks"
         message="Are you sure you want to clear all completed tasks? This cannot be undone."
+        confirmText="Clear Done"
+        isDeleting={isClearingDone}
       />
     </div>
   );

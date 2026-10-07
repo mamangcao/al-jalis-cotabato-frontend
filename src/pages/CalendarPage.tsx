@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
-import { Plus, X, Trash2, ChevronLeft, ChevronRight, Printer, Download, ChevronDown, FileDown } from 'lucide-react';
+import { Plus, X, Trash2, ChevronLeft, ChevronRight, Printer, Download, ChevronDown, FileDown, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
@@ -19,6 +19,7 @@ import { useAuth } from '../AuthContext';
 import { canManageOperations } from '../lib/permissions';
 import toast from 'react-hot-toast';
 import { api } from '../services/api';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 const locales = {
   'en-US': enUS,
@@ -318,6 +319,10 @@ export default function CalendarPage({ events, setEvents }: { events: any[], set
     pendingData?: any;
   }>({ isOpen: false, type: 'edit', event: null });
 
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
   const visibleEvents = React.useMemo(() => {
     const start = subYears(new Date(), 1);
     const end = addYears(new Date(), 2);
@@ -369,24 +374,30 @@ export default function CalendarPage({ events, setEvents }: { events: any[], set
       return;
     }
     
+    setIsSubmitting(true);
     if (isEditing) {
       try {
         const updated = await api.events.update(pendingData.id, pendingData);
         setEvents(events.map(ev => ev.id === pendingData.id ? { ...ev, ...updated, start: new Date(updated.start), end: new Date(updated.end) } : ev));
-      } catch (err) {
-        console.warn('Backend update event failed, updating locally:', err);
-        setEvents(events.map(ev => ev.id === pendingData.id ? pendingData : ev));
+        toast.success('Event updated successfully.');
+        handleCloseModal();
+      } catch (err: any) {
+        toast.error(err.message || 'Unable to update event. Please try again.');
+      } finally {
+        setIsSubmitting(false);
       }
     } else {
       try {
         const created = await api.events.create(pendingData);
         setEvents([...events, { ...created, start: new Date(created.start), end: new Date(created.end) }]);
-      } catch (err) {
-        console.warn('Backend create event failed, saving locally:', err);
-        setEvents([...events, pendingData]);
+        toast.success('Event created successfully.');
+        handleCloseModal();
+      } catch (err: any) {
+        toast.error(err.message || 'Unable to create event. Please try again.');
+      } finally {
+        setIsSubmitting(false);
       }
     }
-    handleCloseModal();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -423,7 +434,7 @@ export default function CalendarPage({ events, setEvents }: { events: any[], set
     processEventSubmission(newEvent, eventContext);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!canManageOperations(currentUser.role)) {
       toast.error("Unauthorized: Operations access required.");
       return;
@@ -432,13 +443,22 @@ export default function CalendarPage({ events, setEvents }: { events: any[], set
     if (eventContext && (eventContext.isInstance || eventContext.isRecurring)) {
       setRecurringAction({ isOpen: true, type: 'delete', event: eventContext });
     } else {
-      try {
-        await api.events.delete(formData.id);
-      } catch (err) {
-        console.warn('Backend delete event failed, deleting locally:', err);
-      }
+      setIsDeleteModalOpen(true);
+    }
+  };
+
+  const confirmDeleteEvent = async () => {
+    setIsDeleting(true);
+    try {
+      await api.events.delete(formData.id);
       setEvents(events.filter(ev => ev.id !== formData.id));
+      toast.success('Event deleted successfully.');
+      setIsDeleteModalOpen(false);
       handleCloseModal();
+    } catch (err: any) {
+      toast.error(err.message || 'Unable to delete event. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -489,12 +509,17 @@ export default function CalendarPage({ events, setEvents }: { events: any[], set
     }
 
     setEvents(newEvents);
+    if (type === 'delete') {
+      toast.success('Event deleted successfully.');
+    } else {
+      toast.success('Event updated successfully.');
+    }
     setRecurringAction({ isOpen: false, type: 'edit', event: null });
     setIsModalOpen(false);
   };
 
   const onEventResize = useCallback(
-    ({ event, start, end }: any) => {
+    async ({ event, start, end }: any) => {
       if (!canManageOperations(currentUser.role)) {
         toast.error("Unauthorized: Operations access required.");
         return;
@@ -504,13 +529,19 @@ export default function CalendarPage({ events, setEvents }: { events: any[], set
         setRecurringAction({ isOpen: true, type: 'move', event, pendingData: updated });
       } else {
         setEvents(events.map(ev => ev.id === event.id ? updated : ev));
+        try {
+          await api.events.update(event.id, updated);
+          toast.success('Event schedule updated.');
+        } catch {
+          // Keep local state update
+        }
       }
     },
-    [events, setEvents]
+    [events, setEvents, currentUser.role]
   );
 
   const onEventDrop = useCallback(
-    ({ event, start, end }: any) => {
+    async ({ event, start, end }: any) => {
       if (!canManageOperations(currentUser.role)) {
         toast.error("Unauthorized: Operations access required.");
         return;
@@ -520,9 +551,15 @@ export default function CalendarPage({ events, setEvents }: { events: any[], set
         setRecurringAction({ isOpen: true, type: 'move', event, pendingData: updated });
       } else {
         setEvents(events.map(ev => ev.id === event.id ? updated : ev));
+        try {
+          await api.events.update(event.id, updated);
+          toast.success('Event schedule updated.');
+        } catch {
+          // Keep local state update
+        }
       }
     },
-    [events, setEvents]
+    [events, setEvents, currentUser.role]
   );
 
   const eventPropGetter = useCallback(
@@ -759,18 +796,40 @@ export default function CalendarPage({ events, setEvents }: { events: any[], set
               <div className="px-6 py-4 border-t border-gray-200 bg-[#F9FAFB] flex justify-between items-center gap-3">
                 <div>
                   {isEditing && (
-                    <button type="button" onClick={handleDelete} className="px-3 py-2 text-[14px] font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97] flex items-center gap-2">
+                    <button 
+                      type="button" 
+                      onClick={handleDelete} 
+                      disabled={isSubmitting || isDeleting}
+                      className="px-3 py-2 text-[14px] font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97] flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       <Trash2 size={16} />
                       Delete
                     </button>
                   )}
                 </div>
                 <div className="flex gap-3">
-                  <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-[14px] font-semibold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]">
+                  <button 
+                    type="button" 
+                    onClick={handleCloseModal} 
+                    disabled={isSubmitting || isDeleting}
+                    className="px-4 py-2 text-[14px] font-semibold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     Cancel
                   </button>
-                  <button type="submit" form="event-form" className="px-4 py-2 text-[14px] font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] hover:shadow-md">
-                    {isEditing ? 'Save Changes' : 'Create Event'}
+                  <button 
+                    type="submit" 
+                    form="event-form" 
+                    disabled={isSubmitting || isDeleting}
+                    className="px-4 py-2 text-[14px] font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] hover:shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed min-w-[110px]"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>{isEditing ? 'Saving...' : 'Creating...'}</span>
+                      </>
+                    ) : (
+                      <span>{isEditing ? 'Save Changes' : 'Create Event'}</span>
+                    )}
                   </button>
                 </div>
               </div>
@@ -833,6 +892,15 @@ export default function CalendarPage({ events, setEvents }: { events: any[], set
           </div>
         )}
       </AnimatePresence>
+
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDeleteEvent}
+        title="Delete Event?"
+        message="Are you sure you want to delete this event? This action cannot be undone."
+        isDeleting={isDeleting}
+      />
     </div>
   );
 }
