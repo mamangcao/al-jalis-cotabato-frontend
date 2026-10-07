@@ -534,21 +534,19 @@ export default function Dashboard({
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-[16px] font-semibold text-gray-900">Reversions Over Time</h2>
           </div>
-          <div className="flex-1 w-full h-[300px] min-h-[300px] relative">
-            <div className="absolute inset-0">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300}>
-                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6B7280' }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} tickLine={false} axisLine={false} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '12px' }}
-                    itemStyle={{ color: '#FF6B00' }}
-                  />
-                  <Area type="monotone" dataKey="reverts" stroke="#FF6B00" strokeWidth={3} fill="#FFF0E6" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="w-full h-[300px]" style={{ minHeight: 300, minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={300}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6B7280' }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} tickLine={false} axisLine={false} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '12px' }}
+                  itemStyle={{ color: '#FF6B00' }}
+                />
+                <Area type="monotone" dataKey="reverts" stroke="#FF6B00" strokeWidth={3} fill="#FFF0E6" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 

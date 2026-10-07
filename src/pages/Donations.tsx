@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import { canManageFinance } from '../lib/permissions';
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { Target, TrendingUp, TrendingDown, DollarSign, Plus, X, Search, Edit2, Trash2, Printer, Download, Receipt, HeartHandshake, Loader2 } from 'lucide-react';
