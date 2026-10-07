@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../AuthContext';
-import { canManageOperations } from '../lib/permissions';
+import { canManageOperations, canAccessReverts, canAccessTaskBoard } from '../lib/permissions';
 import { 
   LineChart, 
   Line, 
@@ -40,7 +40,19 @@ import { calculateTrend } from '../utils/trends';
 import { isEndOfMonth, isLastWeekOfMonth } from '../utils/evaluations';
 import DateRangePicker, { DateRange } from '../components/DateRangePicker';
 
-export default function Dashboard({ reverts = [], events = [], tasks = [], onNavigate, dateRange }: { reverts?: any[], events?: any[], tasks?: any[], onNavigate: (tab: string) => void, dateRange: DateRange }) {
+export default function Dashboard({ 
+  reverts = [], 
+  events = [], 
+  tasks = [], 
+  onNavigate, 
+  dateRange 
+}: { 
+  reverts?: any[], 
+  events?: any[], 
+  tasks?: any[], 
+  onNavigate: (tab: string, entityId?: string | number) => void, 
+  dateRange: DateRange 
+}) {
   const { currentUser } = useAuth();
   const [notices, setNotices] = useState([
     { id: 1, text: 'Please remind Friday volunteers to arrive by 11:30 AM', author: 'Admin User', time: '2 hours ago' },
@@ -219,42 +231,32 @@ export default function Dashboard({ reverts = [], events = [], tasks = [], onNav
 
         {/* Quick Actions */}
         <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 w-full lg:w-auto">
+          {canAccessReverts(currentUser) && (
+            <button 
+              onClick={() => onNavigate('reverts')}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg shadow-sm transition-colors whitespace-nowrap cursor-pointer active:scale-[0.98]"
+            >
+              <PlusCircle size={16} className="text-white" />
+              Add Revert
+            </button>
+          )}
           <button 
-            onClick={() => {
-              toast.success('Action completed successfully');
-              onNavigate('reverts');
-            }}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg shadow-sm transition-colors whitespace-nowrap"
-          >
-            <PlusCircle size={16} className="text-white" />
-            Add Revert
-          </button>
-          <button 
-            onClick={() => {
-              toast.success('Action completed successfully');
-              onNavigate('campaigns');
-            }}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg shadow-sm transition-colors whitespace-nowrap"
+            onClick={() => onNavigate('campaigns')}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg shadow-sm transition-colors whitespace-nowrap cursor-pointer active:scale-[0.98]"
           >
             <DollarSign size={16} className="text-emerald-500" />
             Log Donation
           </button>
           <button 
-            onClick={() => {
-              toast.success('Action completed successfully');
-              onNavigate('calendar');
-            }}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg shadow-sm transition-colors whitespace-nowrap"
+            onClick={() => onNavigate('calendar')}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg shadow-sm transition-colors whitespace-nowrap cursor-pointer active:scale-[0.98]"
           >
             <CalendarPlus size={16} className="text-blue-500" />
             Schedule Event
           </button>
           <button 
-            onClick={() => {
-              toast.success('Action completed successfully');
-              onNavigate('task-board');
-            }}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg shadow-sm transition-colors whitespace-nowrap"
+            onClick={() => onNavigate('task-board')}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg shadow-sm transition-colors whitespace-nowrap cursor-pointer active:scale-[0.98]"
           >
             <CheckSquare size={16} className="text-slate-500" />
             Add Task
@@ -264,8 +266,24 @@ export default function Dashboard({ reverts = [], events = [], tasks = [], onNav
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-        {summaryData.map((stat, idx) => (
-            <div key={idx} className="bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-custom flex flex-col transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-gray-300">
+        {summaryData.map((stat, idx) => {
+          const isRevertsCard = stat.title === 'Total Reverts' || stat.title === 'New This Month' || stat.title === 'Needs Mentor';
+          const isTasksCard = stat.title === 'Active Tasks';
+          const canClick = (isRevertsCard && canAccessReverts(currentUser)) || (isTasksCard && canAccessTaskBoard(currentUser));
+          const targetTab = isRevertsCard ? 'reverts' : isTasksCard ? 'task-board' : null;
+
+          return (
+            <div 
+              key={idx} 
+              onClick={() => {
+                if (canClick && targetTab) {
+                  onNavigate(targetTab);
+                }
+              }}
+              className={`bg-white p-4 sm:p-5 rounded-xl border border-gray-200 shadow-custom flex flex-col transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-gray-300 ${
+                canClick ? 'cursor-pointer hover:border-orange-300' : ''
+              }`}
+            >
               <div className="flex items-center justify-between mb-3">
                 <div className={`p-2.5 rounded-lg ${stat.bgColor} ${stat.color}`}>
                   <stat.icon size={20} strokeWidth={2.5} />
@@ -281,7 +299,8 @@ export default function Dashboard({ reverts = [], events = [], tasks = [], onNav
                 </div>
               </div>
             </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
@@ -312,12 +331,12 @@ export default function Dashboard({ reverts = [], events = [], tasks = [], onNav
         <div className="bg-white rounded-xl border border-gray-200 shadow-custom p-5 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-gray-300">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[16px] font-semibold text-gray-900">Upcoming Events</h2>
-            <button onClick={() => onNavigate('calendar')} className="text-[12px] font-semibold text-orange-500 hover:text-orange-600 transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97]">
+            <button onClick={() => onNavigate('calendar')} className="text-[12px] font-semibold text-orange-500 hover:text-orange-600 transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] cursor-pointer">
               View All
             </button>
           </div>
           
-          <div className="space-y-0">
+          <div className="space-y-1">
             {upcomingEvents.length === 0 ? (
               <div className="py-6 text-center text-[13px] text-gray-500">
                 No upcoming events scheduled.
@@ -328,13 +347,25 @@ export default function Dashboard({ reverts = [], events = [], tasks = [], onNav
               const month = format(eventDate, 'MMM').toUpperCase();
               
               return (
-                <div key={idx} className="flex gap-3 py-3 border-b border-gray-100 last:border-0 last:pb-0">
-                  <div className="bg-orange-50 text-orange-500 rounded-md w-10 h-10 flex flex-col items-center justify-center shrink-0">
+                <div 
+                  key={idx} 
+                  onClick={() => onNavigate('calendar', item.id)}
+                  className="flex gap-3 py-2.5 px-2 hover:bg-orange-50/60 rounded-lg transition-colors cursor-pointer group border-b border-gray-50 last:border-0"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onNavigate('calendar', item.id);
+                    }
+                  }}
+                >
+                  <div className="bg-orange-50 group-hover:bg-orange-100 text-orange-500 rounded-md w-10 h-10 flex flex-col items-center justify-center shrink-0 transition-colors">
                     <span className="text-[10px] font-bold leading-none">{day}</span>
                     <span className="text-[10px] font-bold leading-none mt-0.5">{month}</span>
                   </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-[13px] text-gray-900 line-clamp-1">{item.title}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-[13px] text-gray-900 group-hover:text-orange-600 transition-colors line-clamp-1">{item.title}</div>
                     <div className="text-[11px] text-gray-500 mt-0.5 capitalize">{item.type} • {item.allDay ? 'All Day' : format(eventDate, 'h:mm a')}</div>
                   </div>
                 </div>

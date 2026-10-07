@@ -46,7 +46,9 @@ import {
   canAccessReverts, 
   canAccessDonations, 
   canAccessDirectory, 
-  canAccessTaskBoard 
+  canAccessTaskBoard,
+  canAccessCalendar,
+  canAccessLeaves
 } from './lib/permissions';
 import { initialReverts, initialEvents, initialMembers, mockTasks, mockCampaigns, mockDonations, initialLeaves } from './data';
 import { api } from './services/api';
@@ -64,6 +66,7 @@ function MainApp() {
     return () => window.removeEventListener('auth:expired', handleAuthExpired);
   }, []);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [selectedEventId, setSelectedEventId] = useState<string | number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [isOperationsOpen, setIsOperationsOpen] = useState(false);
@@ -182,6 +185,47 @@ function MainApp() {
         { id: 'settings', label: 'System Settings', icon: Settings, adminOnly: true }
       ];
 
+  // Centralized navigation handler with RBAC validation and history sync
+  const handleNavigate = (tab: string, entityId?: string | number) => {
+    if (isEvalOnly && tab !== 'evaluations') {
+      toast.error('Evaluation-only accounts can only access Peer Evaluations.');
+      return;
+    }
+    if (tab === 'reverts' && !canAccessReverts(currentUser)) {
+      toast.error('You do not have access to the Reverts module.');
+      return;
+    }
+    if (tab === 'directory' && !canAccessDirectory(currentUser)) {
+      toast.error('You do not have access to the Directory.');
+      return;
+    }
+    if ((tab === 'donations' || tab === 'campaigns' || tab === 'history') && !canAccessDonations(currentUser)) {
+      toast.error('You do not have access to Donations.');
+      return;
+    }
+    if (tab === 'calendar' && !canAccessCalendar(currentUser)) {
+      toast.error('You do not have access to the Calendar.');
+      return;
+    }
+    if (tab === 'task-board' && !canAccessTaskBoard(currentUser)) {
+      toast.error('You do not have access to the Task Board.');
+      return;
+    }
+    if (tab === 'leaves' && !canAccessLeaves(currentUser)) {
+      toast.error('You do not have access to Leaves.');
+      return;
+    }
+
+    setActiveTab(tab);
+    if (tab === 'calendar' && entityId) {
+      setSelectedEventId(entityId);
+    }
+    const targetPath = tab === 'dashboard' ? '/' : `/${tab}`;
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
+  };
+
   // RBAC safety navigation guard: ensure users cannot stay on tabs they cannot access
   useEffect(() => {
     if (isEvalOnly && activeTab !== 'evaluations') {
@@ -195,15 +239,33 @@ function MainApp() {
     }
   }, [currentUser, activeTab, isEvalOnly]);
 
-  // Listen for manual URL navigation like /settings, /evaluations or hash navigation
+  // Listen for manual URL navigation, direct page loads, or hash navigation
   useEffect(() => {
     const handleUrlCheck = () => {
-      const path = window.location.pathname.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      if (path === '/settings' || path.endsWith('/settings') || hash === '#/settings' || hash === '#settings') {
-        setActiveTab('settings');
-      } else if (path === '/evaluations' || path.endsWith('/evaluations') || hash === '#/evaluations' || hash === '#evaluations') {
+      const rawPath = window.location.pathname.toLowerCase().replace(/^\/+|\/+$/g, '');
+      const rawHash = window.location.hash.toLowerCase().replace(/^#\/?/, '');
+      const route = rawHash || rawPath;
+
+      if (!route || route === 'dashboard') {
+        setActiveTab('dashboard');
+      } else if (route === 'calendar') {
+        setActiveTab('calendar');
+      } else if (route === 'task-board' || route === 'tasks') {
+        setActiveTab('task-board');
+      } else if (route === 'directory') {
+        setActiveTab('directory');
+      } else if (route === 'reverts') {
+        setActiveTab('reverts');
+      } else if (route === 'campaigns') {
+        setActiveTab('campaigns');
+      } else if (route === 'donations' || route === 'history') {
+        setActiveTab('history');
+      } else if (route === 'leaves') {
+        setActiveTab('leaves');
+      } else if (route === 'evaluations') {
         setActiveTab('evaluations');
+      } else if (route === 'settings') {
+        setActiveTab('settings');
       }
     };
     handleUrlCheck();
@@ -300,18 +362,11 @@ function MainApp() {
                     if (tab.id === 'operations') setIsOperationsOpen(!isOperationsOpen);
                     if (tab.id === 'donations') setIsDonationsOpen(!isDonationsOpen);
                     if (!isActive) {
-                      setActiveTab(tab.subItems[0].id);
+                      handleNavigate(tab.subItems[0].id);
                     }
                   } else {
-                    setActiveTab(tab.id);
+                    handleNavigate(tab.id);
                     setIsSidebarOpen(false);
-                    if (tab.id === 'evaluations') {
-                      window.history.pushState(null, '', '/evaluations');
-                    } else if (tab.id === 'settings') {
-                      window.history.pushState(null, '', '/settings');
-                    } else if (tab.id === 'dashboard') {
-                      window.history.pushState(null, '', '/');
-                    }
                   }
                 }}
                 className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-all duration-200 ${
@@ -348,7 +403,7 @@ function MainApp() {
                         <button
                           key={subItem.id}
                           onClick={() => {
-                            setActiveTab(subItem.id);
+                            handleNavigate(subItem.id);
                             setIsSidebarOpen(false);
                           }}
                           className={`w-full text-left pl-[52px] pr-6 py-2.5 text-[13px] font-medium transition-colors ${
@@ -380,7 +435,7 @@ function MainApp() {
         onClose={() => setIsCommandPaletteOpen(false)} 
         data={{ reverts, donations, members, tasks }}
         onNavigate={(tab) => {
-          setActiveTab(tab);
+          handleNavigate(tab);
           if (tab === 'directory' || tab === 'task-board') setIsOperationsOpen(true);
           if (tab === 'campaigns' || tab === 'history') setIsDonationsOpen(true);
         }}
@@ -487,10 +542,10 @@ function MainApp() {
             <div className="flex items-center gap-4">
               <NotificationBell 
                 events={events} 
-                onNavigate={(tab) => {
-                  setActiveTab(tab);
-                  window.history.pushState(null, '', `/${tab}`);
-                }} 
+                tasks={tasks}
+                leaves={leaves}
+                reverts={reverts}
+                onNavigate={handleNavigate} 
               />
               
               <div className="h-4 w-[1px] bg-gray-200 hidden sm:block"></div>
@@ -567,18 +622,13 @@ function MainApp() {
               transition={{ duration: 0.2 }}
               className="h-full w-full overflow-y-auto print:overflow-visible print:h-auto"
             >
-              {activeTab === 'dashboard' && <Dashboard reverts={reverts} events={events} tasks={tasks} onNavigate={(tab) => setActiveTab(tab)} dateRange={dateRange} />}
+              {activeTab === 'dashboard' && <Dashboard reverts={reverts} events={events} tasks={tasks} onNavigate={handleNavigate} dateRange={dateRange} />}
               {activeTab === 'reverts' && <Reverts reverts={reverts} setReverts={setReverts} dateRange={dateRange} />}
-              {activeTab === 'calendar' && <CalendarPage events={events} setEvents={setEvents} />}
+              {activeTab === 'calendar' && <CalendarPage events={events} setEvents={setEvents} selectedEventId={selectedEventId} onClearSelectedEvent={() => setSelectedEventId(null)} />}
               {(activeTab === 'directory' || activeTab === 'task-board') && <Operations view={activeTab} members={members} setMembers={setMembers} tasks={tasks} setTasks={setTasks} />}
               {(activeTab === 'campaigns' || activeTab === 'history') && <Donations view={activeTab} dateRange={dateRange} campaigns={campaigns} setCampaigns={setCampaigns} donations={donations} setDonations={setDonations} />}
               {activeTab === 'settings' && (
-                <SettingsPage onNavigate={(tab) => {
-                  setActiveTab(tab);
-                  if (tab === 'dashboard') {
-                    window.history.replaceState(null, '', '/');
-                  }
-                }} />
+                <SettingsPage onNavigate={(tab) => handleNavigate(tab)} />
               )}
               {activeTab === 'leaves' && <LeaveManagement leaves={leaves} setLeaves={setLeaves} />}
               {activeTab === 'evaluations' && <EvaluationsPage members={members} />}

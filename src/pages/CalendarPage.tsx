@@ -214,7 +214,17 @@ const CustomToolbar = (toolbar: any) => {
   );
 };
 
-export default function CalendarPage({ events, setEvents }: { events: any[], setEvents: (e: any[]) => void }) {
+export default function CalendarPage({ 
+  events, 
+  setEvents,
+  selectedEventId,
+  onClearSelectedEvent
+}: { 
+  events: any[]; 
+  setEvents: (e: any[]) => void;
+  selectedEventId?: string | number | null;
+  onClearSelectedEvent?: () => void;
+}) {
   const { currentUser } = useAuth();
   const calendarRef = useRef<HTMLDivElement>(null);
   // 1. Standardize Date State Management
@@ -361,6 +371,23 @@ export default function CalendarPage({ events, setEvents }: { events: any[], set
     }
     setIsModalOpen(true);
   };
+
+  // Handle opening selected event from notification / external navigation
+  React.useEffect(() => {
+    if (selectedEventId) {
+      const eventToSelect = events.find(e => String(e.id) === String(selectedEventId));
+      if (eventToSelect) {
+        const eventStart = new Date(eventToSelect.start);
+        if (!isNaN(eventStart.getTime())) {
+          setCurrentDate(new Date(eventStart.getFullYear(), eventStart.getMonth(), 1));
+        }
+        handleOpenModal(eventToSelect);
+      } else {
+        toast.error('This event is no longer available.');
+      }
+      onClearSelectedEvent?.();
+    }
+  }, [selectedEventId, events]);
 
   const handleCloseModal = () => {
     setIsModalOpen(false);

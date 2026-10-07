@@ -42,3 +42,14 @@ export const canAccessTaskBoard = (user?: Partial<User> | null) => {
   if (!user) return false;
   return user.account_type !== 'evaluation_only' && user.role !== 'evaluation_only';
 };
+
+export const canAccessCalendar = (user?: Partial<User> | null) => {
+  if (!user) return false;
+  return user.account_type !== 'evaluation_only' && user.role !== 'evaluation_only';
+};
+
+export const canAccessLeaves = (user?: Partial<User> | null) => {
+  if (!user) return false;
+  return user.account_type !== 'evaluation_only' && user.role !== 'evaluation_only';
+};
+
