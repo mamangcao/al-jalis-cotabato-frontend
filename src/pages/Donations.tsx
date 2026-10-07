@@ -84,7 +84,7 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
       if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
       if (filterCategory !== 'All') params.category = filterCategory;
       if (dateRange?.startDate) params.startDate = format(dateRange.startDate, 'yyyy-MM-dd');
-      if (dateRange?.endDate) params.endDate = format(dateRange.endDate, 'yyyy-MM-dd');
+      if (dateRange?.preset !== 'all_time' && dateRange?.endDate) params.endDate = format(dateRange.endDate, 'yyyy-MM-dd');
 
       const res = await api.donations.getAll(params);
       if (res && res.data) {
@@ -434,7 +434,7 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
       const start = startOfDay(dateRange.startDate);
       if (dDate < start) return false;
     }
-    if (dateRange.endDate) {
+    if (dateRange.preset !== 'all_time' && dateRange.endDate) {
       const end = startOfDay(dateRange.endDate); // comparing normalized dates
       if (dDate > end) return false;
     }
@@ -451,7 +451,7 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
   const totalContributions = filteredDonations.length;
   const averageDonation = totalContributions > 0 ? (overallTotal / totalContributions).toFixed(2) : 0;
 
-  const dateSubtitle = dateRange.startDate && dateRange.endDate 
+  const dateSubtitle = dateRange.preset !== 'all_time' && dateRange.startDate && dateRange.endDate 
     ? `${formatDisplayDate(dateRange.startDate)} - ${formatDisplayDate(dateRange.endDate)}`
     : 'All Time';
 

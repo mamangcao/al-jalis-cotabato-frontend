@@ -231,7 +231,7 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
       if (filters.gender) params.gender = filters.gender;
       if (filters.previousReligion) params.previousReligion = filters.previousReligion;
       if (dateRange?.startDate) params.startDate = format(dateRange.startDate, 'yyyy-MM-dd');
-      if (dateRange?.endDate) params.endDate = format(dateRange.endDate, 'yyyy-MM-dd');
+      if (dateRange?.preset !== 'all_time' && dateRange?.endDate) params.endDate = format(dateRange.endDate, 'yyyy-MM-dd');
 
       const res = await api.reverts.getAll(params);
       if (res && res.data) {

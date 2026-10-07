@@ -285,52 +285,110 @@ export default function Dashboard({
   };
 
   const [dashboardStats, setDashboardStats] = useState<any>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
-    api.reverts.getStats()
+    const controller = new AbortController();
+    setIsLoadingStats(true);
+
+    const params: Record<string, string> = {
+      preset: dateRange?.preset || 'all_time',
+    };
+    if (dateRange?.startDate) {
+      params.startDate = format(dateRange.startDate, 'yyyy-MM-dd');
+    }
+    if (dateRange?.endDate) {
+      params.endDate = format(dateRange.endDate, 'yyyy-MM-dd');
+    }
+
+    api.reverts.getStats(params, { signal: controller.signal })
       .then(res => {
         if (isMounted && res) {
           setDashboardStats(res);
         }
       })
-      .catch(() => {});
-    return () => { isMounted = false; };
-  }, []);
+      .catch(err => {
+        if (err?.name !== 'AbortError') {
+          console.error('Failed to load dashboard stats:', err);
+        }
+      })
+      .finally(() => {
+        if (isMounted && !controller.signal.aborted) {
+          setIsLoadingStats(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [
+    dateRange?.preset,
+    dateRange?.startDate ? dateRange.startDate.getTime() : null,
+    dateRange?.endDate ? dateRange.endDate.getTime() : null,
+  ]);
 
   const summaryData = useMemo(() => {
-    // 1. Total Reverts (Raw count of all reverts)
-    const totalRevertsCount = dashboardStats?.totalReverts ?? reverts.length;
+    const isAllTime = dateRange?.preset === 'all_time' || (!dateRange?.startDate && !dateRange?.endDate);
 
-    // 2. Shahadahs This Month
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    const shahadahsThisMonth = dashboardStats?.shahadahsThisMonth ?? reverts.filter(r => {
-      if (!r.reversionDate) return false;
-      const revDate = new Date(r.reversionDate);
-      return revDate.getMonth() === currentMonth && revDate.getFullYear() === currentYear;
-    }).length;
+    // 1. Total Reverts / Reverts in Period
+    const totalRevertsCount = isAllTime 
+      ? (dashboardStats?.totalReverts ?? reverts.length)
+      : (dashboardStats?.periodReverts ?? 0);
 
-    // 3. Pending Mentorship
+    let revertsSubtitle = '— All time';
+    if (!isAllTime) {
+      if (dateRange?.preset === 'ytd') revertsSubtitle = '— Year to Date';
+      else if (dateRange?.preset === 'mtd') revertsSubtitle = '— Month to Date';
+      else if (dateRange?.preset === 'last_30_days') revertsSubtitle = '— Last 30 Days';
+      else if (dateRange?.preset === 'last_7_days') revertsSubtitle = '— Last 7 Days';
+      else if (dateRange?.preset === 'today') revertsSubtitle = '— Today';
+      else revertsSubtitle = '— Selected period';
+    }
+
+    // 2. New This Month / Period
+    const shahadahsThisMonth = dashboardStats?.shahadahsThisMonth ?? 0;
+    const periodReverts = dashboardStats?.periodReverts ?? 0;
+
+    let newCount = shahadahsThisMonth;
+    let newSubtitle = '— Current month';
+    let newTitle = 'New This Month';
+
+    if (dateRange?.preset === 'mtd') {
+      newTitle = 'New This Month';
+      newCount = periodReverts;
+      newSubtitle = '— Month to Date';
+    } else if (
+      dateRange?.preset === 'last_30_days' || 
+      dateRange?.preset === 'last_7_days' || 
+      dateRange?.preset === 'today' || 
+      dateRange?.preset === 'custom'
+    ) {
+      newTitle = 'Recent Reverts';
+      newCount = periodReverts;
+      newSubtitle = revertsSubtitle;
+    }
+
+    // 3. Pending Mentorship (Unfiltered current operational backlog)
     const pendingMentorship = dashboardStats?.pendingMentorship ?? reverts.filter(r => r.mentorshipStatus === 'Pending Assignment').length;
 
-    // 4. Open Tasks
+    // 4. Open Tasks (Unfiltered current operational backlog)
     const openTasks = dashboardStats?.openTasks ?? tasks.filter(t => t.status === 'todo' || t.status === 'in-progress').length;
 
     return [
       { 
-        title: 'Total Reverts', 
+        title: isAllTime ? 'Total Reverts' : 'Reverts in Period', 
         value: totalRevertsCount.toString(), 
-        subtitle: '— All time', 
+        subtitle: revertsSubtitle, 
         icon: Users, 
         color: 'text-gray-600', 
         bgColor: 'bg-gray-100' 
       },
       { 
-        title: 'New This Month', 
-        value: shahadahsThisMonth.toString(), 
-        subtitle: '— Current month', 
+        title: newTitle, 
+        value: newCount.toString(), 
+        subtitle: newSubtitle, 
         icon: TrendingUp, 
         color: 'text-emerald-600', 
         bgColor: 'bg-emerald-50' 
@@ -352,74 +410,36 @@ export default function Dashboard({
         bgColor: 'bg-slate-100' 
       },
     ];
-  }, [reverts, tasks, dashboardStats]);
+  }, [reverts, tasks, dashboardStats, dateRange]);
+
+  const chartSubtitle = useMemo(() => {
+    if (dateRange?.preset === 'all_time' || (!dateRange?.startDate && !dateRange?.endDate)) {
+      return 'Showing activity from 2016 to present';
+    }
+    if (dateRange?.preset === 'ytd') {
+      return 'Showing monthly activity for the current year (Jan – Present)';
+    }
+    if (dateRange?.preset === 'mtd') {
+      return 'Showing daily activity for the current month';
+    }
+    if (dateRange?.preset === 'last_30_days') {
+      return 'Showing daily activity for the last 30 days';
+    }
+    if (dateRange?.preset === 'last_7_days') {
+      return 'Showing daily activity for the last 7 days';
+    }
+    if (dateRange?.preset === 'today') {
+      return 'Showing activity for today';
+    }
+    if (dateRange?.startDate && dateRange?.endDate) {
+      return `Showing activity from ${formatDisplayDate(dateRange.startDate)} to ${formatDisplayDate(dateRange.endDate)}`;
+    }
+    return 'Showing activity for selected period';
+  }, [dateRange]);
 
   const chartData = useMemo(() => {
-    if (!dateRange.startDate && dashboardStats?.chartData?.length) {
-      return dashboardStats.chartData;
-    }
-
-    if (!dateRange.startDate) {
-      // All time - show last 6 months
-      const months = [];
-      for (let i = 5; i >= 0; i--) {
-        months.push(subMonths(new Date(), i));
-      }
-      return months.map(month => {
-        const count = reverts.filter(r => {
-          if (!r.reversionDate) return false;
-          const revDate = new Date(r.reversionDate);
-          return isSameMonth(revDate, month);
-        }).length;
-        
-        return { name: format(month, 'MMM'), reverts: count };
-      });
-    }
-
-    const currentEnd = dateRange.endDate || new Date();
-    const durationMs = currentEnd.getTime() - dateRange.startDate.getTime();
-    const days = Math.round(durationMs / (1000 * 60 * 60 * 24));
-
-    if (days <= 31) {
-      // Show daily data
-      const data = [];
-      for (let i = 0; i <= days; i++) {
-        const day = addDays(dateRange.startDate, i);
-        if (isAfter(day, currentEnd)) break;
-        
-        const count = reverts.filter(r => {
-          if (!r.reversionDate) return false;
-          return isSameDay(new Date(r.reversionDate), day);
-        }).length;
-
-        data.push({
-          name: format(day, 'MMM d'),
-          reverts: count
-        });
-      }
-      return data;
-    } else {
-      // Show monthly data within range
-      const data = [];
-      let currentMonth = new Date(dateRange.startDate);
-      while (isBefore(currentMonth, currentEnd) || isSameMonth(currentMonth, currentEnd)) {
-        const count = reverts.filter(r => {
-          if (!r.reversionDate) return false;
-          const revDate = new Date(r.reversionDate);
-          return isSameMonth(revDate, currentMonth) && 
-                 (isAfter(revDate, dateRange.startDate) || isSameDay(revDate, dateRange.startDate)) &&
-                 (isBefore(revDate, currentEnd) || isSameDay(revDate, currentEnd));
-        }).length;
-        
-        data.push({
-          name: format(currentMonth, 'MMM yy'),
-          reverts: count
-        });
-        currentMonth = addMonths(currentMonth, 1);
-      }
-      return data;
-    }
-  }, [reverts, dateRange]);
+    return dashboardStats?.chartData || [];
+  }, [dashboardStats]);
 
   const upcomingEvents = useMemo(() => {
     const today = startOfDay(new Date());
@@ -532,17 +552,42 @@ export default function Dashboard({
         {/* Chart Section */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-custom p-6 min-h-[300px] flex flex-col transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-gray-300">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-[16px] font-semibold text-gray-900">Reversions Over Time</h2>
+            <div>
+              <h2 className="text-[16px] font-semibold text-gray-900">Reversions Over Time</h2>
+              <p className="text-xs text-gray-500 mt-0.5">{chartSubtitle}</p>
+            </div>
+            {isLoadingStats && (
+              <div className="flex items-center gap-1.5 text-xs text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md font-medium">
+                <Loader2 size={13} className="animate-spin" />
+                <span>Updating...</span>
+              </div>
+            )}
           </div>
           <div className="w-full h-[300px]" style={{ minHeight: 300, minWidth: 0 }}>
             <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={300}>
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6B7280' }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#6B7280' }} tickLine={false} axisLine={false} />
+                <XAxis 
+                  dataKey="name" 
+                  tick={{ fontSize: 11, fill: '#6B7280' }} 
+                  tickLine={false} 
+                  axisLine={false} 
+                  interval="preserveStartEnd"
+                />
+                <YAxis 
+                  tick={{ fontSize: 11, fill: '#6B7280' }} 
+                  tickLine={false} 
+                  axisLine={false} 
+                  allowDecimals={false}
+                />
                 <Tooltip 
                   contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB', fontSize: '12px' }}
                   itemStyle={{ color: '#FF6B00' }}
+                  formatter={(value: any) => [`${value} reverts`, 'Count']}
+                  labelFormatter={(label: any, payload: any) => {
+                    const item = payload?.[0]?.payload;
+                    return item?.fullName || label;
+                  }}
                 />
                 <Area type="monotone" dataKey="reverts" stroke="#FF6B00" strokeWidth={3} fill="#FFF0E6" />
               </AreaChart>

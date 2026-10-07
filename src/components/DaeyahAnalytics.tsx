@@ -7,11 +7,15 @@ import { Users, UserCheck, GraduationCap } from 'lucide-react';
 export default function DaeyahAnalytics({ reverts, dateRange, members = [] }: { reverts: any[], dateRange: DateRange, members?: any[] }) {
   // Filter reverts by date range
   const filteredReverts = useMemo(() => {
+    if (dateRange?.preset === 'all_time' || (!dateRange?.startDate && !dateRange?.endDate)) {
+      return reverts;
+    }
     return reverts.filter(r => {
+      if (!r.reversionDate) return false;
       const itemDate = new Date(r.reversionDate);
-      const currentEnd = dateRange.endDate || new Date();
-      return (isAfter(itemDate, dateRange.startDate) || itemDate.getTime() === dateRange.startDate.getTime()) && 
-             (isBefore(itemDate, currentEnd) || itemDate.getTime() === currentEnd.getTime());
+      if (dateRange?.startDate && isBefore(itemDate, dateRange.startDate)) return false;
+      if (dateRange?.preset !== 'all_time' && dateRange?.endDate && isAfter(itemDate, dateRange.endDate)) return false;
+      return true;
     });
   }, [reverts, dateRange]);
 

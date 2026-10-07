@@ -88,8 +88,9 @@ function MainApp() {
   const [notices, setNotices] = useState<any[]>([]);
   
   const [dateRange, setDateRange] = useState<DateRange>({
+    preset: 'all_time',
     startDate: null,
-    endDate: null
+    endDate: new Date()
   });
 
   // Load live data from Laravel backend when authenticated

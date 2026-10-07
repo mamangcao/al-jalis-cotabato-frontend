@@ -122,7 +122,8 @@ class ApiService {
   reverts = {
     getAll: <T = any>(params?: QueryParams) => 
       this.request<any>(`/reverts${toQueryString(params)}`),
-    getStats: () => this.request<any>('/reverts/stats'),
+    getStats: (params?: QueryParams, options?: RequestInit) => 
+      this.request<any>(`/reverts/stats${toQueryString(params)}`, options),
     get: (id: string | number) => this.request<any>(`/reverts/${id}`),
     create: (data: any) => this.request<any>('/reverts', {
       method: 'POST',
