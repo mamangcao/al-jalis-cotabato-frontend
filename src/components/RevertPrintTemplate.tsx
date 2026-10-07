@@ -1,15 +1,10 @@
 import React from 'react';
-import { format } from 'date-fns';
+import { formatDisplayDate } from '../utils/dateUtils';
 import { Globe, Handshake } from 'lucide-react';
 
 const RevertPrintTemplate = React.forwardRef(({ revert }: { revert: any }, ref: React.Ref<HTMLDivElement>) => {
   const formatDate = (dateString: string) => {
-    if (!dateString) return '';
-    try {
-      return format(new Date(dateString), 'MMMM d, yyyy');
-    } catch {
-      return dateString;
-    }
+    return formatDisplayDate(dateString, '');
   };
 
   const Row = ({ label, value }: { label: string, value: string }) => (

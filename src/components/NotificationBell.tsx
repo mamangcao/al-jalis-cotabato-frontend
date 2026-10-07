@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { isToday, isTomorrow, format } from 'date-fns';
 import { ToastContainer } from './Toast';
 import { isEndOfMonth, isLastWeekOfMonth } from '../utils/evaluations';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 export interface Notification {
   id: string;
@@ -196,7 +197,7 @@ export default function NotificationBell({ events, onNavigate }: NotificationBel
                             {notification.message}
                           </p>
                           <p className="text-[11px] text-gray-400 mt-1.5 font-medium">
-                            {format(notification.timestamp, 'MMM d, yyyy')}
+                            {formatDisplayDate(notification.timestamp)}
                           </p>
                         </div>
                       </div>

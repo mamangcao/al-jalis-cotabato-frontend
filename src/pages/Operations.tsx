@@ -14,6 +14,7 @@ import EmptyState from '../components/EmptyState';
 import ProvisionUserModal from '../components/ProvisionUserModal';
 import { createPortal } from 'react-dom';
 import { api } from '../services/api';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 
 const getBadgeStyle = (type: string) => {
@@ -488,7 +489,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                               </td>
                               <td className="px-5 py-3 text-gray-500">{person.phone || '-'}</td>
                               <td className="px-5 py-3 text-gray-500">{person.email || '-'}</td>
-                              <td className="px-5 py-3 text-gray-500">{person.joinDate || '-'}</td>
+                              <td className="px-5 py-3 text-gray-500">{formatDisplayDate(person.joinDate)}</td>
                               <td className="px-5 py-3 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   {canManagePersonnel(currentUser.role) && (
@@ -577,7 +578,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                               </td>
                               <td className="px-5 py-3 text-gray-500">{person.phone || '-'}</td>
                               <td className="px-5 py-3 text-gray-500">{person.email || '-'}</td>
-                              <td className="px-5 py-3 text-gray-500">{person.joinDate || '-'}</td>
+                              <td className="px-5 py-3 text-gray-500">{formatDisplayDate(person.joinDate)}</td>
                               <td className="px-5 py-3 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   {canManagePersonnel(currentUser.role) && (

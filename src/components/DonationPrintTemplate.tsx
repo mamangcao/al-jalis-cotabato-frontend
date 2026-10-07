@@ -1,5 +1,5 @@
 import React from 'react';
-import { format } from 'date-fns';
+import { formatDisplayDate } from '../utils/dateUtils';
 import { Globe, Handshake } from 'lucide-react';
 
 const DonationPrintTemplate = React.forwardRef(({ donations, dateSubtitle, totalAmount }: { donations: any[], dateSubtitle: string, totalAmount: number }, ref: React.Ref<HTMLDivElement>) => {
@@ -50,7 +50,7 @@ const DonationPrintTemplate = React.forwardRef(({ donations, dateSubtitle, total
           <tbody>
             {donations.map((donation, idx) => (
               <tr key={idx}>
-                <td className="border-2 border-black p-2 text-[12px] font-medium uppercase">{donation.date}</td>
+                <td className="border-2 border-black p-2 text-[12px] font-medium uppercase">{formatDisplayDate(donation.date)}</td>
                 <td className="border-2 border-black p-2 text-[12px] font-medium uppercase">{donation.donorName}</td>
                 <td className="border-2 border-black p-2 text-[12px] font-medium uppercase">{donation.category}</td>
                 <td className="border-2 border-black p-2 text-[12px] font-medium uppercase">{donation.campaignTitle || '-'}</td>

@@ -14,6 +14,7 @@ import RevertPrintTemplate from '../components/RevertPrintTemplate';
 import EmptyState from '../components/EmptyState';
 import { createPortal } from 'react-dom';
 import { generateRevertSerial, getChapterCode } from '../utils/revertSerial';
+import { formatDisplayDate } from '../utils/dateUtils';
 import { api } from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -565,7 +566,7 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
                       <td className="px-5 py-3">{age}</td>
                       <td className="px-5 py-3">{person.gender}</td>
                       <td className="px-5 py-3">{person.previousReligion}</td>
-                      <td className="px-5 py-3 whitespace-nowrap">{person.reversionDate}</td>
+                      <td className="px-5 py-3 whitespace-nowrap">{formatDisplayDate(person.reversionDate)}</td>
                       <td className="px-5 py-3">
                         <span className={`inline-flex items-center px-2 py-1 rounded-[20px] text-[11px] font-semibold ${
                           person.status === 'Active' ? 'bg-[#ECFDF5] text-[#059669]' :

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, ChevronDown } from 'lucide-react';
 import { format, subDays, startOfMonth, startOfYear, isAfter, isBefore, startOfDay, endOfDay } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 export interface DateRange {
   startDate: Date | null;
@@ -49,13 +50,13 @@ export default function DateRangePicker({ dateRange, onChange }: DateRangePicker
   const formatDateLabel = () => {
     if (!dateRange.startDate && !dateRange.endDate) return 'All Time';
     if (dateRange.startDate && dateRange.endDate) {
-      return `${format(dateRange.startDate, 'MMM d, yyyy')} - ${format(dateRange.endDate, 'MMM d, yyyy')}`;
+      return `${formatDisplayDate(dateRange.startDate)} - ${formatDisplayDate(dateRange.endDate)}`;
     }
     if (dateRange.startDate) {
-      return `From ${format(dateRange.startDate, 'MMM d, yyyy')}`;
+      return `From ${formatDisplayDate(dateRange.startDate)}`;
     }
     if (dateRange.endDate) {
-      return `Until ${format(dateRange.endDate, 'MMM d, yyyy')}`;
+      return `Until ${formatDisplayDate(dateRange.endDate)}`;
     }
     return 'Select Date Range';
   };

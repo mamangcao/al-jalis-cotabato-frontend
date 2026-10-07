@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { DEPARTMENTS } from '@/utils/constants';
 import { AnonymousEvaluation, EvaluationRatings, getRecentMonths } from '../../utils/evaluations';
+import { formatDisplayDate } from '../../utils/dateUtils';
 
 interface Member {
   id: string;
@@ -367,11 +368,7 @@ export default function HrOverview({
                         4
                       ).toFixed(1);
 
-                      const formattedDate = new Date(review.createdAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      });
+                      const formattedDate = formatDisplayDate(review.createdAt);
 
                       return (
                         <div 

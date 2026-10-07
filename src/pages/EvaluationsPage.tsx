@@ -32,6 +32,7 @@ import {
   EvaluationRatings, 
   EvaluationFeedback 
 } from '../utils/evaluations';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 interface Member {
   id: string;
@@ -708,11 +709,7 @@ export default function EvaluationsPage({ members }: EvaluationsPageProps) {
                     4
                   ).toFixed(1);
 
-                  const formattedDate = new Date(review.createdAt).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                  });
+                  const formattedDate = formatDisplayDate(review.createdAt);
 
                   return (
                     <div 

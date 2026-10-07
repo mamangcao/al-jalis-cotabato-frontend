@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Plus, X, Eye, CheckCircle2, XCircle, Edit2, Trash2, Lock, AlertTriangle, FileCheck2, ChevronDown, ChevronUp, Info, Loader2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { getSystemSettings, isDateInRestrictedPeriod } from '../utils/systemSettings';
+import { formatDisplayDate } from '../utils/dateUtils';
 import { api } from '../services/api';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
@@ -437,7 +438,7 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
               ) : (
                 visibleLeaves.map((leave: any) => (
                   <tr key={leave.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{leave.dateFiled}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDisplayDate(leave.dateFiled)}</td>
                     {isAdmin && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{leave.employeeName}</td>
                     )}
@@ -447,7 +448,7 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
                       </td>
                     )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {leave.startDate} to {leave.returnDate}
+                      {formatDisplayDate(leave.startDate)} to {formatDisplayDate(leave.returnDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{leave.leaveType}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -508,7 +509,7 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
                     <div>
                       <strong>Important Notice:</strong> Vacation leave is not permitted during designated Restricted Periods
                       {sysSettings.restrictedPeriods.length > 0 && (
-                        <span>: {sysSettings.restrictedPeriods.map(p => `${p.title} (${p.startDate} to ${p.endDate})`).join(', ')}.</span>
+                        <span>: {sysSettings.restrictedPeriods.map(p => `${p.title} (${formatDisplayDate(p.startDate)} to ${formatDisplayDate(p.endDate)})`).join(', ')}.</span>
                       )}
                     </div>
                   </div>
@@ -763,8 +764,8 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
                       {reviewingLeave.leaveType === 'Emergency Leave' && reviewingLeave.emergencyReason && (
                         <div className="col-span-2"><span className="block text-gray-500 mb-1">Emergency Condition</span><span className="font-medium text-gray-900">{reviewingLeave.emergencyReason}</span></div>
                       )}
-                      <div><span className="block text-gray-500 mb-1">Start Date</span><span className="font-medium text-gray-900">{reviewingLeave.startDate}</span></div>
-                      <div><span className="block text-gray-500 mb-1">Return Date</span><span className="font-medium text-gray-900">{reviewingLeave.returnDate}</span></div>
+                      <div><span className="block text-gray-500 mb-1">Start Date</span><span className="font-medium text-gray-900">{formatDisplayDate(reviewingLeave.startDate)}</span></div>
+                      <div><span className="block text-gray-500 mb-1">Return Date</span><span className="font-medium text-gray-900">{formatDisplayDate(reviewingLeave.returnDate)}</span></div>
                       {reviewingLeave.reason && (
                         <div className="col-span-2">
                           <span className="block text-gray-500 mb-1">Reason / Explanation</span>

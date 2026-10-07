@@ -15,6 +15,7 @@ import EmptyState from '../components/EmptyState';
 import DonationPrintTemplate from '../components/DonationPrintTemplate';
 import { createPortal } from 'react-dom';
 import { api } from '../services/api';
+import { formatDisplayDate } from '../utils/dateUtils';
 
 const mockCampaigns = [
   { id: '1', title: 'Zakat Fund', description: 'Annual Zakat collection for distribution to the needy in the community.', goalAmount: 100000, category: 'Zakat' },
@@ -385,7 +386,7 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
   const averageDonation = totalContributions > 0 ? (overallTotal / totalContributions).toFixed(2) : 0;
 
   const dateSubtitle = dateRange.startDate && dateRange.endDate 
-    ? `${format(dateRange.startDate, 'MMM d, yyyy')} - ${format(dateRange.endDate, 'MMM d, yyyy')}`
+    ? `${formatDisplayDate(dateRange.startDate)} - ${formatDisplayDate(dateRange.endDate)}`
     : 'All Time';
 
   const printDonations = filteredDonations.map(d => ({
@@ -645,7 +646,7 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
                           const campaign = campaigns.find(c => c.id === donation.campaignId);
                           return (
                           <tr key={donation.id} className="transition-colors duration-200 ease-in-out hover:bg-gray-50">
-                            <td className="px-6 py-4 font-medium">{donation.date}</td>
+                            <td className="px-6 py-4 font-medium">{formatDisplayDate(donation.date)}</td>
                             <td className="px-6 py-4">{donation.donorName}</td>
                             <td className="px-6 py-4">
                               <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase bg-opacity-10 ${
