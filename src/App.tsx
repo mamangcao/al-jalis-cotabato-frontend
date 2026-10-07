@@ -97,53 +97,47 @@ function MainApp() {
   useEffect(() => {
     if (!isAuthenticated) return;
     let isMounted = true;
-    const fetchBackendData = async () => {
-      try {
-        const [revertsData, eventsData, membersData, tasksData, campaignsData, donationsData, leavesData, noticesData] = await Promise.all([
-          api.reverts.getAll().catch(() => null),
-          api.events.getAll().catch(() => null),
-          api.members.getAll().catch(() => null),
-          api.tasks.getAll().catch(() => null),
-          api.campaigns.getAll().catch(() => null),
-          api.donations.getAll().catch(() => null),
-          api.leaves.getAll().catch(() => null),
-          api.notices.getAll().catch(() => null),
-        ]);
+    const fetchBackendData = () => {
+      // Fetch each resource independently so each UI module populates immediately as soon as its data returns
+      api.notices.getAll()
+        .then(data => { if (isMounted && Array.isArray(data)) setNotices(data); })
+        .catch(() => {});
 
-        if (!isMounted) return;
+      api.events.getAll()
+        .then(data => {
+          if (isMounted && Array.isArray(data) && data.length > 0) {
+            setEvents(data.map((ev: any) => ({
+              ...ev,
+              start: new Date(ev.start),
+              end: ev.end ? new Date(ev.end) : new Date(ev.start),
+            })));
+          }
+        })
+        .catch(() => {});
 
-        if (revertsData && Array.isArray(revertsData) && revertsData.length > 0) {
-          setReverts(revertsData);
-        }
-        if (eventsData && Array.isArray(eventsData) && eventsData.length > 0) {
-          const parsedEvents = eventsData.map((ev: any) => ({
-            ...ev,
-            start: new Date(ev.start),
-            end: ev.end ? new Date(ev.end) : new Date(ev.start),
-          }));
-          setEvents(parsedEvents);
-        }
-        if (membersData && Array.isArray(membersData) && membersData.length > 0) {
-          setMembers(membersData);
-        }
-        if (tasksData && Array.isArray(tasksData) && tasksData.length > 0) {
-          setTasks(tasksData);
-        }
-        if (campaignsData && Array.isArray(campaignsData) && campaignsData.length > 0) {
-          setCampaigns(campaignsData);
-        }
-        if (donationsData && Array.isArray(donationsData) && donationsData.length > 0) {
-          setDonations(donationsData);
-        }
-        if (leavesData && Array.isArray(leavesData) && leavesData.length > 0) {
-          setLeaves(leavesData);
-        }
-        if (noticesData && Array.isArray(noticesData)) {
-          setNotices(noticesData);
-        }
-      } catch (err) {
-        console.warn('Backend API not reachable, falling back to local dataset.', err);
-      }
+      api.tasks.getAll()
+        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setTasks(data); })
+        .catch(() => {});
+
+      api.leaves.getAll()
+        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setLeaves(data); })
+        .catch(() => {});
+
+      api.members.getAll()
+        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setMembers(data); })
+        .catch(() => {});
+
+      api.reverts.getAll()
+        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setReverts(data); })
+        .catch(() => {});
+
+      api.campaigns.getAll()
+        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setCampaigns(data); })
+        .catch(() => {});
+
+      api.donations.getAll()
+        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setDonations(data); })
+        .catch(() => {});
     };
 
     fetchBackendData();
