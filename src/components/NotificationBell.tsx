@@ -252,11 +252,11 @@ export default function NotificationBell({
 
         const isNotice = item.type === 'notice' || item.type === 'official_notice';
         const notifId = `noticeboard-${item.id}`;
-        const title = isNotice ? 'New Staff Notice' : 'New Staff Post';
+        const title = isNotice ? 'Official Announcement' : 'Staff Post';
         const displaySnippet = item.title || item.content || item.text || 'New update posted';
         const message = isNotice 
-          ? `Notice: ${displaySnippet}`
-          : `Post from ${item.author_name || 'Staff'}: ${displaySnippet}`;
+            ? `Official Announcement: ${displaySnippet}`
+            : `Staff Post from ${item.author_name || 'Staff'}: ${displaySnippet}`;
 
         const createdAt = item.created_at ? new Date(item.created_at) : new Date();
 
@@ -271,15 +271,15 @@ export default function NotificationBell({
           isRead: readIds.has(notifId),
           target_tab: 'dashboard',
           action_url: '/',
-          action_label: isNotice ? 'View Notice' : 'View Post',
+          action_label: isNotice ? 'View Announcement' : 'View Note',
           metadata: { itemId: item.id, itemType: item.type }
         };
 
         newNotifications.push(notif);
 
-        // In-app toast for recent (within last 24h), unread noticeboard items not yet dismissed in session
+        // In-app toast for recent (within last 24h), unread official announcements not yet dismissed in session
         const isRecent = (Date.now() - (isNaN(createdAt.getTime()) ? Date.now() : createdAt.getTime())) < 24 * 60 * 60 * 1000;
-        if (!readIds.has(notifId) && !dismissedToastIdsRef.current.has(notifId) && isRecent && !hasTriggeredInitialToastsRef.current) {
+        if (isNotice && !readIds.has(notifId) && !dismissedToastIdsRef.current.has(notifId) && isRecent && !hasTriggeredInitialToastsRef.current) {
           toastsToTrigger.push(notif);
         }
       });

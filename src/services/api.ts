@@ -118,6 +118,16 @@ class ApiService {
       }),
   };
 
+  // ================= Dashboard =================
+  dashboard = {
+    getKpis: (params?: QueryParams, options?: RequestInit) => 
+      this.request<any>(`/dashboard/kpis${toQueryString(params)}`, options),
+    getStats: (params?: QueryParams, options?: RequestInit) => 
+      this.request<any>(`/dashboard/stats${toQueryString(params)}`, options),
+    getRevertsOverTime: (params?: QueryParams, options?: RequestInit) => 
+      this.request<any>(`/dashboard/reverts-over-time${toQueryString(params)}`, options),
+  };
+
   // ================= Reverts =================
   reverts = {
     getAll: <T = any>(params?: QueryParams) => 
@@ -180,12 +190,12 @@ class ApiService {
     getAll: <T = any>(params?: QueryParams) => 
       this.request<any>(`/notices${toQueryString(params)}`),
     get: (id: string | number) => this.request<any>(`/notices/${id}`),
-    create: (data: { title?: string; content: string; type?: 'staff_note' | 'official_notice' | 'post' | 'notice' | string; department?: string; audience?: string }) =>
+    create: (data: { title?: string; content: string; type?: 'staff_note' | 'official_notice' | 'post' | 'notice' | string; department?: string; audience?: string; is_pinned?: boolean }) =>
       this.request<any>('/notices', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    update: (id: string | number, data: { title?: string; content?: string; type?: 'staff_note' | 'official_notice' | 'post' | 'notice' | string; department?: string; audience?: string }) =>
+    update: (id: string | number, data: { title?: string; content?: string; type?: 'staff_note' | 'official_notice' | 'post' | 'notice' | string; department?: string; audience?: string; is_pinned?: boolean }) =>
       this.request<any>(`/notices/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),

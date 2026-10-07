@@ -2,7 +2,7 @@ import DaeyahAnalytics from '../components/DaeyahAnalytics';
 import { initialMembers } from '../data';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import GlobalPillTabs from '../components/ui/GlobalPillTabs';
-import { differenceInYears, isAfter, isBefore, startOfDay, endOfDay, startOfYear, startOfMonth } from 'date-fns';
+import { differenceInYears, isAfter, isBefore, startOfDay, endOfDay, startOfYear, startOfMonth, format } from 'date-fns';
 import { Search, Plus, Filter, MoreHorizontal, X, TrendingUp, TrendingDown, Minus, Printer, Edit2, Download, Trash2, Users, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';

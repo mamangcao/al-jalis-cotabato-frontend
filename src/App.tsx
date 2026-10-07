@@ -646,6 +646,7 @@ function MainApp() {
                   reverts={reverts} 
                   events={events} 
                   tasks={tasks} 
+                  leaves={leaves}
                   notices={notices}
                   setNotices={setNotices}
                   selectedNoticeId={selectedNoticeId}
