@@ -139,6 +139,25 @@ class ApiService {
     }),
   };
 
+  // ================= Notices =================
+  notices = {
+    getAll: () => this.request<any[]>('/notices'),
+    get: (id: string | number) => this.request<any>(`/notices/${id}`),
+    create: (data: { title?: string; content: string; type?: 'staff_note' | 'official_notice'; department?: string }) =>
+      this.request<any>('/notices', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (id: string | number, data: { title?: string; content?: string; type?: 'staff_note' | 'official_notice'; department?: string }) =>
+      this.request<any>(`/notices/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string | number) => this.request<{ message: string }>(`/notices/${id}`, {
+      method: 'DELETE',
+    }),
+  };
+
   // ================= Tasks =================
   tasks = {
     getAll: (params?: { scope?: 'my' | 'department' | 'all'; department?: string; status?: string; priority?: string }) => {

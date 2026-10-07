@@ -48,7 +48,8 @@ import {
   canAccessDirectory, 
   canAccessTaskBoard,
   canAccessCalendar,
-  canAccessLeaves
+  canAccessLeaves,
+  canAccessNoticeboard
 } from './lib/permissions';
 import { initialReverts, initialEvents, initialMembers, mockTasks, mockCampaigns, mockDonations, initialLeaves } from './data';
 import { api } from './services/api';
@@ -67,6 +68,7 @@ function MainApp() {
   }, []);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedEventId, setSelectedEventId] = useState<string | number | null>(null);
+  const [selectedNoticeId, setSelectedNoticeId] = useState<string | number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [isOperationsOpen, setIsOperationsOpen] = useState(false);
@@ -84,6 +86,7 @@ function MainApp() {
   const [campaigns, setCampaigns] = useState(mockCampaigns);
   const [donations, setDonations] = useState(mockDonations);
   const [leaves, setLeaves] = useState(initialLeaves);
+  const [notices, setNotices] = useState<any[]>([]);
   
   const [dateRange, setDateRange] = useState<DateRange>({
     startDate: null,
@@ -96,7 +99,7 @@ function MainApp() {
     let isMounted = true;
     const fetchBackendData = async () => {
       try {
-        const [revertsData, eventsData, membersData, tasksData, campaignsData, donationsData, leavesData] = await Promise.all([
+        const [revertsData, eventsData, membersData, tasksData, campaignsData, donationsData, leavesData, noticesData] = await Promise.all([
           api.reverts.getAll().catch(() => null),
           api.events.getAll().catch(() => null),
           api.members.getAll().catch(() => null),
@@ -104,6 +107,7 @@ function MainApp() {
           api.campaigns.getAll().catch(() => null),
           api.donations.getAll().catch(() => null),
           api.leaves.getAll().catch(() => null),
+          api.notices.getAll().catch(() => null),
         ]);
 
         if (!isMounted) return;
@@ -133,6 +137,9 @@ function MainApp() {
         }
         if (leavesData && Array.isArray(leavesData) && leavesData.length > 0) {
           setLeaves(leavesData);
+        }
+        if (noticesData && Array.isArray(noticesData)) {
+          setNotices(noticesData);
         }
       } catch (err) {
         console.warn('Backend API not reachable, falling back to local dataset.', err);
@@ -219,6 +226,9 @@ function MainApp() {
     setActiveTab(tab);
     if (tab === 'calendar' && entityId) {
       setSelectedEventId(entityId);
+    }
+    if (tab === 'dashboard' && entityId) {
+      setSelectedNoticeId(entityId);
     }
     const targetPath = tab === 'dashboard' ? '/' : `/${tab}`;
     if (window.location.pathname !== targetPath) {
@@ -545,6 +555,7 @@ function MainApp() {
                 tasks={tasks}
                 leaves={leaves}
                 reverts={reverts}
+                notices={notices}
                 onNavigate={handleNavigate} 
               />
               
@@ -622,7 +633,19 @@ function MainApp() {
               transition={{ duration: 0.2 }}
               className="h-full w-full overflow-y-auto print:overflow-visible print:h-auto"
             >
-              {activeTab === 'dashboard' && <Dashboard reverts={reverts} events={events} tasks={tasks} onNavigate={handleNavigate} dateRange={dateRange} />}
+              {activeTab === 'dashboard' && (
+                <Dashboard 
+                  reverts={reverts} 
+                  events={events} 
+                  tasks={tasks} 
+                  notices={notices}
+                  setNotices={setNotices}
+                  selectedNoticeId={selectedNoticeId}
+                  onClearSelectedNotice={() => setSelectedNoticeId(null)}
+                  onNavigate={handleNavigate} 
+                  dateRange={dateRange} 
+                />
+              )}
               {activeTab === 'reverts' && <Reverts reverts={reverts} setReverts={setReverts} dateRange={dateRange} />}
               {activeTab === 'calendar' && <CalendarPage events={events} setEvents={setEvents} selectedEventId={selectedEventId} onClearSelectedEvent={() => setSelectedEventId(null)} />}
               {(activeTab === 'directory' || activeTab === 'task-board') && <Operations view={activeTab} members={members} setMembers={setMembers} tasks={tasks} setTasks={setTasks} />}

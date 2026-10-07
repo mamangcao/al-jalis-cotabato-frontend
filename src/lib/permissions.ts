@@ -53,3 +53,35 @@ export const canAccessLeaves = (user?: Partial<User> | null) => {
   return user.account_type !== 'evaluation_only' && user.role !== 'evaluation_only';
 };
 
+export const canAccessNoticeboard = (user?: Partial<User> | null) => {
+  if (!user) return false;
+  return user.account_type !== 'evaluation_only' && user.role !== 'evaluation_only';
+};
+
+export const canCreateOfficialNotice = (user?: Partial<User> | null) => {
+  if (!user) return false;
+  if (user.account_type === 'evaluation_only' || user.role === 'evaluation_only') return false;
+  return ['super_admin', 'director', 'admin_director', 'admin', 'hr', 'admin_hr', 'executive_secretary', 'department_head'].includes(user.role || '');
+};
+
+export const canCreateStaffNote = (user?: Partial<User> | null) => {
+  if (!user) return false;
+  return user.account_type !== 'evaluation_only' && user.role !== 'evaluation_only';
+};
+
+export const canModerateNotices = (user?: Partial<User> | null) => {
+  if (!user) return false;
+  if (user.account_type === 'evaluation_only' || user.role === 'evaluation_only') return false;
+  return ['super_admin', 'director', 'admin_director', 'admin', 'hr', 'admin_hr', 'executive_secretary'].includes(user.role || '');
+};
+
+export const canManageNotice = (notice: any, user?: Partial<User> | null) => {
+  if (!user) return false;
+  if (user.account_type === 'evaluation_only' || user.role === 'evaluation_only') return false;
+  if (canModerateNotices(user)) return true;
+  if (user.id && notice?.created_by_user_id && String(notice.created_by_user_id) === String(user.id)) return true;
+  if (user.role === 'department_head' && notice?.department && notice.department === user.department) return true;
+  return false;
+};
+
+

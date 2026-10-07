@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Bell, BellRing, Calendar, ClipboardList, FileText, MessageSquareHeart, Users } from 'lucide-react';
+import { Bell, BellRing, Calendar, ClipboardList, FileText, MessageSquareHeart, Users, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { isToday, isTomorrow, format } from 'date-fns';
 import { ToastContainer } from './Toast';
@@ -14,7 +14,8 @@ import {
 import { 
   canManageFinance, 
   canManagePersonnel, 
-  canAccessReverts 
+  canAccessReverts,
+  canAccessNoticeboard
 } from '../lib/permissions';
 
 export type Notification = AppNotification;
@@ -24,6 +25,7 @@ interface NotificationBellProps {
   tasks?: any[];
   leaves?: any[];
   reverts?: any[];
+  notices?: any[];
   onNavigate?: (tab: string, entityId?: string | number) => void;
 }
 
@@ -73,6 +75,7 @@ export default function NotificationBell({
   tasks = [], 
   leaves = [], 
   reverts = [], 
+  notices = [],
   onNavigate 
 }: NotificationBellProps) {
   const { currentUser } = useAuth();
@@ -235,6 +238,42 @@ export default function NotificationBell({
       }
     }
 
+    // 6. Staff Noticeboard Notices
+    if (canAccessNoticeboard(currentUser) && notices && notices.length > 0) {
+      notices.forEach(notice => {
+        // Exclude notices authored by current user
+        if (currentUser?.id && String(notice.created_by_user_id || '') === String(currentUser.id)) {
+          return;
+        }
+
+        const noticeId = `notice-${notice.id}`;
+        const isOfficial = notice.type === 'official_notice';
+        const title = isOfficial ? 'Official Notice' : 'Staff Note';
+        const authorPrefix = notice.author_name ? `${notice.author_name}: ` : '';
+        const displaySnippet = notice.title || notice.content || 'New notice posted';
+        const message = isOfficial 
+          ? `Official Announcement: ${displaySnippet}`
+          : `Staff Note: ${authorPrefix}${displaySnippet}`;
+
+        const createdAt = notice.created_at ? new Date(notice.created_at) : new Date();
+
+        newNotifications.push({
+          id: noticeId,
+          type: 'notice',
+          entity_type: 'notice',
+          entity_id: notice.id,
+          title,
+          message,
+          timestamp: isNaN(createdAt.getTime()) ? new Date() : createdAt,
+          isRead: readIds.has(noticeId),
+          target_tab: 'dashboard',
+          action_url: '/',
+          action_label: 'View Notice',
+          metadata: { noticeId: notice.id, noticeType: notice.type }
+        });
+      });
+    }
+
     // Trigger toasts (limit to max 3)
     if (toastsToTrigger.length > 0) {
       setActiveToasts(currentToasts => {
@@ -257,7 +296,7 @@ export default function NotificationBell({
     });
 
     setNotifications(newNotifications);
-  }, [events, tasks, leaves, reverts, currentUser]);
+  }, [events, tasks, leaves, reverts, notices, currentUser]);
 
   // ── Mark as Read ──────────────────────────────────────────────────────────
   const markAsRead = useCallback((id: string) => {
@@ -341,6 +380,9 @@ export default function NotificationBell({
     }
     if (type.includes('revert') || entityType === 'revert') {
       return <Users size={16} className="text-emerald-500" />;
+    }
+    if (type.includes('notice') || entityType === 'notice') {
+      return <Megaphone size={16} className="text-amber-600" />;
     }
     return <Bell size={16} className="text-gray-500" />;
   };

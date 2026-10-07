@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   Users, 
   UserCheck, 
@@ -18,11 +18,28 @@ import {
   CalendarPlus,
   Pin,
   Send,
-  CheckSquare
+  CheckSquare,
+  Megaphone,
+  Plus,
+  Edit,
+  Trash2,
+  X,
+  Loader2,
+  User
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../AuthContext';
-import { canManageOperations, canAccessReverts, canAccessTaskBoard } from '../lib/permissions';
+import { 
+  canManageOperations, 
+  canAccessReverts, 
+  canAccessTaskBoard,
+  canAccessNoticeboard,
+  canCreateOfficialNotice,
+  canCreateStaffNote,
+  canModerateNotices,
+  canManageNotice
+} from '../lib/permissions';
 import { 
   LineChart, 
   Line, 
@@ -34,47 +51,241 @@ import {
   Area,
   AreaChart
 } from 'recharts';
-import { format, isAfter, isBefore, startOfDay, endOfDay, subDays, parseISO, subMonths, isSameMonth, addMonths, isSameDay, addDays } from 'date-fns';
+import { format, isAfter, isBefore, startOfDay, endOfDay, subDays, parseISO, subMonths, isSameMonth, addMonths, isSameDay, addDays, isToday } from 'date-fns';
 import { generateInstances } from '../utils/recurrence';
 import { calculateTrend } from '../utils/trends';
 import { isEndOfMonth, isLastWeekOfMonth } from '../utils/evaluations';
 import DateRangePicker, { DateRange } from '../components/DateRangePicker';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
+import { formatDisplayDate } from '../utils/dateUtils';
+import { api } from '../services/api';
+
+function formatNoticeTime(createdAt?: string | Date): string {
+  if (!createdAt) return 'Recently';
+  try {
+    const d = new Date(createdAt);
+    if (isNaN(d.getTime())) return String(createdAt);
+    if (isToday(d)) {
+      return `Today at ${format(d, 'h:mm a')}`;
+    }
+    return formatDisplayDate(d);
+  } catch {
+    return 'Recently';
+  }
+}
+
+interface DashboardProps {
+  reverts?: any[];
+  events?: any[];
+  tasks?: any[];
+  notices?: any[];
+  setNotices?: React.Dispatch<React.SetStateAction<any[]>>;
+  selectedNoticeId?: string | number | null;
+  onClearSelectedNotice?: () => void;
+  onNavigate: (tab: string, entityId?: string | number) => void;
+  dateRange: DateRange;
+}
 
 export default function Dashboard({ 
   reverts = [], 
   events = [], 
   tasks = [], 
+  notices = [],
+  setNotices,
+  selectedNoticeId = null,
+  onClearSelectedNotice,
   onNavigate, 
   dateRange 
-}: { 
-  reverts?: any[], 
-  events?: any[], 
-  tasks?: any[], 
-  onNavigate: (tab: string, entityId?: string | number) => void, 
-  dateRange: DateRange 
-}) {
+}: DashboardProps) {
   const { currentUser } = useAuth();
-  const [notices, setNotices] = useState([
-    { id: 1, text: 'Please remind Friday volunteers to arrive by 11:30 AM', author: 'Admin User', time: '2 hours ago' },
-    { id: 2, text: 'The new sound system will be installed tomorrow after Dhuhr', author: 'Operations Team', time: '5 hours ago' }
-  ]);
-  const [newNotice, setNewNotice] = useState('');
 
-  const handleAddNotice = (e: React.FormEvent) => {
+  // Noticeboard states
+  const [viewingNotice, setViewingNotice] = useState<any | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingNotice, setEditingNotice] = useState<any | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeletingNotice, setIsDeletingNotice] = useState(false);
+  const [isSubmittingNotice, setIsSubmittingNotice] = useState(false);
+
+  // Quick note input
+  const [quickNote, setQuickNote] = useState('');
+  const [isQuickSubmitting, setIsQuickSubmitting] = useState(false);
+
+  // Notice creation form data
+  const [noticeFormData, setNoticeFormData] = useState<{
+    title: string;
+    content: string;
+    type: 'staff_note' | 'official_notice';
+    department: string;
+  }>({
+    title: '',
+    content: '',
+    type: 'staff_note',
+    department: currentUser?.department || ''
+  });
+
+  // Notice edit form data
+  const [editFormData, setEditFormData] = useState<{
+    title: string;
+    content: string;
+    type: 'staff_note' | 'official_notice';
+    department: string;
+  }>({
+    title: '',
+    content: '',
+    type: 'staff_note',
+    department: ''
+  });
+
+  // Watch for selectedNoticeId to automatically open View Notice modal
+  useEffect(() => {
+    if (!selectedNoticeId) return;
+
+    const found = notices.find(n => String(n.id) === String(selectedNoticeId));
+    if (found) {
+      setViewingNotice(found);
+      setIsViewModalOpen(true);
+    } else {
+      api.notices.get(selectedNoticeId)
+        .then(data => {
+          if (data) {
+            setViewingNotice(data);
+            setIsViewModalOpen(true);
+          }
+        })
+        .catch(() => {
+          toast.error('Notice not found or no longer available.');
+        });
+    }
+  }, [selectedNoticeId, notices]);
+
+  const handleCloseViewModal = () => {
+    setIsViewModalOpen(false);
+    setViewingNotice(null);
+    onClearSelectedNotice?.();
+  };
+
+  const handleOpenEditModal = (notice: any) => {
+    setEditingNotice(notice);
+    setEditFormData({
+      title: notice.title || '',
+      content: notice.content || notice.text || '',
+      type: notice.type || 'staff_note',
+      department: notice.department || ''
+    });
+    setIsViewModalOpen(false);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCreateNotice = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManageOperations(currentUser.role)) {
-      toast.error("Unauthorized: Operations access required.");
+    if (!noticeFormData.content.trim()) {
+      toast.error('Notice content is required.');
       return;
     }
-    if (!newNotice.trim()) return;
-    setNotices([{
-      id: Date.now(),
-      text: newNotice.trim(),
-      author: currentUser?.name || 'Staff User',
-      time: 'Just now'
-    }, ...notices]);
-    setNewNotice('');
-    toast.success('Notice posted successfully.');
+    setIsSubmittingNotice(true);
+    try {
+      const payload = {
+        title: noticeFormData.title.trim() || null,
+        content: noticeFormData.content.trim(),
+        type: noticeFormData.type,
+        department: noticeFormData.type === 'official_notice' ? null : (noticeFormData.department.trim() || null)
+      };
+      const created = await api.notices.create(payload);
+      if (setNotices) {
+        setNotices(prev => [created, ...prev]);
+      }
+      toast.success(noticeFormData.type === 'official_notice' ? 'Official notice published.' : 'Staff note posted.');
+      setIsCreateModalOpen(false);
+      setNoticeFormData({
+        title: '',
+        content: '',
+        type: 'staff_note',
+        department: currentUser?.department || ''
+      });
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to post notice.');
+    } finally {
+      setIsSubmittingNotice(false);
+    }
+  };
+
+  const handleQuickPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickNote.trim()) return;
+    if (!canCreateStaffNote(currentUser)) {
+      toast.error('Unauthorized to post notes.');
+      return;
+    }
+    setIsQuickSubmitting(true);
+    try {
+      const created = await api.notices.create({
+        content: quickNote.trim(),
+        type: 'staff_note',
+        department: currentUser?.department || null
+      });
+      if (setNotices) {
+        setNotices(prev => [created, ...prev]);
+      }
+      setQuickNote('');
+      toast.success('Staff note posted.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to post note.');
+    } finally {
+      setIsQuickSubmitting(false);
+    }
+  };
+
+  const handleUpdateNotice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNotice) return;
+    if (!editFormData.content.trim()) {
+      toast.error('Notice content is required.');
+      return;
+    }
+    setIsSubmittingNotice(true);
+    try {
+      const payload = {
+        title: editFormData.title.trim() || null,
+        content: editFormData.content.trim(),
+        type: editFormData.type,
+        department: editFormData.type === 'official_notice' ? null : (editFormData.department.trim() || null)
+      };
+      const updated = await api.notices.update(editingNotice.id, payload);
+      if (setNotices) {
+        setNotices(prev => prev.map(n => n.id === editingNotice.id ? updated : n));
+      }
+      toast.success('Notice updated successfully.');
+      setIsEditModalOpen(false);
+      setViewingNotice(updated);
+      setIsViewModalOpen(true);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update notice.');
+    } finally {
+      setIsSubmittingNotice(false);
+    }
+  };
+
+  const handleDeleteNotice = async () => {
+    if (!viewingNotice) return;
+    setIsDeletingNotice(true);
+    try {
+      await api.notices.delete(viewingNotice.id);
+      if (setNotices) {
+        setNotices(prev => prev.filter(n => n.id !== viewingNotice.id));
+      }
+      toast.success('Notice deleted successfully.');
+      setIsDeleteConfirmOpen(false);
+      setIsViewModalOpen(false);
+      setViewingNotice(null);
+      onClearSelectedNotice?.();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to delete notice.');
+    } finally {
+      setIsDeletingNotice(false);
+    }
   };
 
   const summaryData = useMemo(() => {
@@ -375,45 +586,486 @@ export default function Dashboard({
         </div>
 
         {/* Noticeboard Widget */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex flex-col h-[400px]">
-          <div className="flex items-center gap-2 mb-4 shrink-0 border-b border-gray-100 pb-3">
-            <Pin size={18} className="text-gray-500" />
-            <h2 className="text-[16px] font-semibold text-gray-900">Staff Noticeboard</h2>
+        {canAccessNoticeboard(currentUser) && (
+          <div className="bg-white border border-gray-200 rounded-xl shadow-custom p-5 flex flex-col h-[400px] transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-gray-300">
+            <div className="flex items-center justify-between gap-2 mb-4 shrink-0 border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Pin size={18} className="text-orange-500" />
+                <h2 className="text-[16px] font-semibold text-gray-900">Staff Noticeboard</h2>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                  {notices.length}
+                </span>
+              </div>
+              {canCreateStaffNote(currentUser) && (
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Plus size={14} />
+                  <span>Post Notice</span>
+                </button>
+              )}
+            </div>
+            
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2.5">
+              {notices.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-4 text-gray-400">
+                  <Megaphone size={28} className="stroke-1 mb-2 text-gray-300" />
+                  <p className="text-sm font-medium text-gray-500">No notices posted yet</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Notices and announcements will appear here.</p>
+                </div>
+              ) : (
+                notices.map((notice) => {
+                  const isOfficial = notice.type === 'official_notice';
+                  return (
+                    <div 
+                      key={notice.id} 
+                      onClick={() => {
+                        setViewingNotice(notice);
+                        setIsViewModalOpen(true);
+                      }}
+                      className="group flex flex-col p-3 bg-gray-50 hover:bg-orange-50/50 rounded-lg border border-gray-100 hover:border-orange-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs"
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setViewingNotice(notice);
+                          setIsViewModalOpen(true);
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {isOfficial ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+                              <Megaphone size={10} /> Official
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">
+                              <Pin size={10} /> Note
+                            </span>
+                          )}
+                          {notice.department && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200/70 text-gray-700">
+                              {notice.department}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-gray-400 font-medium shrink-0">
+                          {formatNoticeTime(notice.created_at)}
+                        </span>
+                      </div>
+
+                      {notice.title && (
+                        <div className="text-[13px] font-semibold text-gray-900 group-hover:text-orange-600 transition-colors line-clamp-1">
+                          {notice.title}
+                        </div>
+                      )}
+                      
+                      <div className="text-[12px] text-gray-600 leading-snug line-clamp-2 mt-0.5">
+                        {notice.content || notice.text}
+                      </div>
+
+                      <div className="mt-2 text-[11px] text-gray-500 flex items-center gap-1.5">
+                        <span className="font-medium text-gray-700">
+                          {notice.author_name || notice.author || 'Staff Member'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Quick Note Input at bottom */}
+            {canCreateStaffNote(currentUser) && (
+              <form onSubmit={handleQuickPost} className="flex gap-2 mt-3 pt-3 border-t border-gray-100 shrink-0 w-full">
+                <input 
+                  type="text" 
+                  value={quickNote}
+                  onChange={(e) => setQuickNote(e.target.value)}
+                  placeholder="Post a quick note..."
+                  disabled={isQuickSubmitting}
+                  className="w-full text-xs sm:text-sm pl-3 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-hidden focus:border-orange-500 focus:bg-white transition-colors"
+                />
+                <button 
+                  type="submit"
+                  disabled={!quickNote.trim() || isQuickSubmitting}
+                  className="px-3 sm:px-4 py-2 bg-gray-900 text-white text-xs sm:text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                >
+                  {isQuickSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  <span className="hidden sm:inline">Post</span>
+                </button>
+              </form>
+            )}
           </div>
-          
-          <div className="flex-1 overflow-y-auto pr-2 space-y-3">
-            {notices.map((notice) => (
-              <div key={notice.id} className="flex flex-col p-3 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-800 leading-snug">{notice.text}</div>
-                <div className="mt-1 text-xs text-gray-500 flex items-center gap-1">
-                  <span>{notice.author}</span>
-                  <span>•</span>
-                  <span>{notice.time}</span>
+        )}
+      </div>
+
+      {/* Dedicated View Notice Modal (Read-Only first) */}
+      <AnimatePresence>
+        {isViewModalOpen && viewingNotice && (
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={handleCloseViewModal}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative bg-white shadow-xl w-[95%] sm:w-[500px] md:max-w-xl max-h-[90vh] overflow-y-auto mx-auto rounded-xl flex flex-col"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#F9FAFB]">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {viewingNotice.type === 'official_notice' ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
+                      <Megaphone size={12} /> Official Notice
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">
+                      <Pin size={12} /> Staff Note
+                    </span>
+                  )}
+                  {viewingNotice.department && (
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+                      {viewingNotice.department}
+                    </span>
+                  )}
+                </div>
+                <button 
+                  onClick={handleCloseViewModal}
+                  className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100 cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5 overflow-y-auto space-y-4">
+                {viewingNotice.title && (
+                  <h3 className="text-lg font-bold text-gray-900 leading-snug">
+                    {viewingNotice.title}
+                  </h3>
+                )}
+
+                <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed bg-gray-50 p-4 rounded-lg border border-gray-100 font-normal">
+                  {viewingNotice.content || viewingNotice.text}
+                </div>
+
+                <div className="pt-2 border-t border-gray-100 flex flex-col gap-1.5 text-xs text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <User size={14} className="text-gray-400" />
+                    <span>
+                      Posted by <strong className="text-gray-700 font-semibold">{viewingNotice.author_name || viewingNotice.author || 'Staff Member'}</strong>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock size={14} className="text-gray-400" />
+                    <span>
+                      {formatDisplayDate(viewingNotice.created_at)}
+                      {viewingNotice.created_at && !isNaN(new Date(viewingNotice.created_at).getTime()) && ` at ${format(new Date(viewingNotice.created_at), 'h:mm a')}`}
+                    </span>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
 
-          {canManageOperations(currentUser.role) && (
-            <form onSubmit={handleAddNotice} className="flex gap-2 mt-4 shrink-0 w-full">
-              <input 
-                type="text" 
-                value={newNotice}
-                onChange={(e) => setNewNotice(e.target.value)}
-                placeholder="Post a quick note..."
-                className="w-full text-sm pl-3 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-hidden focus:border-gray-300 focus:bg-white transition-colors"
-              />
-              <button 
-                type="submit"
-                disabled={!newNotice.trim()}
-                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors shrink-0"
-              >
-                Post
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 bg-[#F9FAFB] flex justify-between items-center gap-3">
+                <div>
+                  {canManageNotice(viewingNotice, currentUser) && (
+                    <div className="flex items-center gap-2">
+                      <button 
+                        type="button" 
+                        onClick={() => setIsDeleteConfirmOpen(true)}
+                        className="px-3 py-2 text-[13px] font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Trash2 size={15} />
+                        Delete
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => handleOpenEditModal(viewingNotice)}
+                        className="px-3 py-2 text-[13px] font-semibold text-gray-700 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Edit size={15} />
+                        Edit
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  type="button" 
+                  onClick={handleCloseViewModal}
+                  className="px-4 py-2 text-[13px] font-semibold text-gray-700 hover:text-gray-900 bg-white border border-gray-200 rounded-lg shadow-2xs hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Notice Modal */}
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setIsCreateModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative bg-white shadow-xl w-[95%] sm:w-[500px] md:max-w-xl max-h-[90vh] overflow-y-auto mx-auto rounded-xl flex flex-col"
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#F9FAFB]">
+                <h3 className="text-[16px] font-semibold text-gray-900">Post New Notice</h3>
+                <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateNotice} className="px-6 py-4 space-y-4">
+                {/* Notice Type Selection (if authorized for official notice) */}
+                {canCreateOfficialNotice(currentUser) && (
+                  <div>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Notice Classification</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setNoticeFormData({ ...noticeFormData, type: 'staff_note' })}
+                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                          noticeFormData.type === 'staff_note'
+                            ? 'bg-blue-50 border-blue-400 text-blue-700 ring-2 ring-blue-100'
+                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <Pin size={14} />
+                        Staff Note
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNoticeFormData({ ...noticeFormData, type: 'official_notice' })}
+                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                          noticeFormData.type === 'official_notice'
+                            ? 'bg-amber-50 border-amber-400 text-amber-800 ring-2 ring-amber-100'
+                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <Megaphone size={14} />
+                        Official Notice
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[13px] font-medium text-gray-700 mb-1">Title (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={noticeFormData.title} 
+                    onChange={e => setNoticeFormData({ ...noticeFormData, title: e.target.value })} 
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900" 
+                    placeholder="e.g. Schedule Update or Maintenance Announcement" 
+                  />
+                </div>
+
+                {noticeFormData.type === 'staff_note' && (
+                  <div>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1">Target Department (Optional)</label>
+                    <input 
+                      type="text" 
+                      value={noticeFormData.department} 
+                      onChange={e => setNoticeFormData({ ...noticeFormData, department: e.target.value })} 
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900" 
+                      placeholder="e.g. Da'wah, Operations, or leave blank for General" 
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[13px] font-medium text-gray-700 mb-1">Notice Content <span className="text-red-500">*</span></label>
+                  <textarea 
+                    rows={4} 
+                    required
+                    value={noticeFormData.content} 
+                    onChange={e => setNoticeFormData({ ...noticeFormData, content: e.target.value })} 
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900 resize-none" 
+                    placeholder="Write your announcement or note..." 
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-3 border-t border-gray-100">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsCreateModalOpen(false)} 
+                    disabled={isSubmittingNotice}
+                    className="px-4 py-2 text-[13px] font-semibold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg shadow-2xs hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isSubmittingNotice || !noticeFormData.content.trim()}
+                    className="px-4 py-2 text-[13px] font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmittingNotice && <Loader2 size={14} className="animate-spin" />}
+                    <span>{noticeFormData.type === 'official_notice' ? 'Publish Notice' : 'Post Note'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Notice Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && editingNotice && (
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => {
+                setIsEditModalOpen(false);
+                setIsViewModalOpen(true);
+              }}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative bg-white shadow-xl w-[95%] sm:w-[500px] md:max-w-xl max-h-[90vh] overflow-y-auto mx-auto rounded-xl flex flex-col"
+            >
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#F9FAFB]">
+                <h3 className="text-[16px] font-semibold text-gray-900">Edit Notice</h3>
+                <button 
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setIsViewModalOpen(true);
+                  }} 
+                  className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateNotice} className="px-6 py-4 space-y-4">
+                {canCreateOfficialNotice(currentUser) && (
+                  <div>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">Notice Classification</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setEditFormData({ ...editFormData, type: 'staff_note' })}
+                        className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                          editFormData.type === 'staff_note'
+                            ? 'bg-blue-50 border-blue-400 text-blue-700 ring-2 ring-blue-100'
+                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <Pin size={14} />
+                        Staff Note
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditFormData({ ...editFormData, type: 'official_notice' })}
+                        className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                          editFormData.type === 'official_notice'
+                            ? 'bg-amber-50 border-amber-400 text-amber-800 ring-2 ring-amber-100'
+                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <Megaphone size={14} />
+                        Official Notice
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[13px] font-medium text-gray-700 mb-1">Title (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={editFormData.title} 
+                    onChange={e => setEditFormData({ ...editFormData, title: e.target.value })} 
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900" 
+                  />
+                </div>
+
+                {editFormData.type === 'staff_note' && (
+                  <div>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1">Target Department (Optional)</label>
+                    <input 
+                      type="text" 
+                      value={editFormData.department} 
+                      onChange={e => setEditFormData({ ...editFormData, department: e.target.value })} 
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900" 
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[13px] font-medium text-gray-700 mb-1">Notice Content <span className="text-red-500">*</span></label>
+                  <textarea 
+                    rows={4} 
+                    required
+                    value={editFormData.content} 
+                    onChange={e => setEditFormData({ ...editFormData, content: e.target.value })} 
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white outline-hidden transition-all text-gray-900 resize-none" 
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-3 border-t border-gray-100">
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setIsEditModalOpen(false);
+                      setIsViewModalOpen(true);
+                    }} 
+                    disabled={isSubmittingNotice}
+                    className="px-4 py-2 text-[13px] font-semibold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-lg shadow-2xs hover:bg-gray-50 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isSubmittingNotice || !editFormData.content.trim()}
+                    className="px-4 py-2 text-[13px] font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmittingNotice && <Loader2 size={14} className="animate-spin" />}
+                    <span>Save Changes</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <DeleteConfirmationModal
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={handleDeleteNotice}
+        title="Delete Notice?"
+        message="Are you sure you want to delete this notice? This action cannot be undone."
+        isDeleting={isDeletingNotice}
+      />
     </div>
   );
 }

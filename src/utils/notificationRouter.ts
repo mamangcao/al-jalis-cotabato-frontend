@@ -4,7 +4,8 @@ import {
   canAccessLeaves, 
   canAccessReverts, 
   canAccessDirectory, 
-  canAccessDonations 
+  canAccessDonations,
+  canAccessNoticeboard
 } from '../lib/permissions';
 
 export type NotificationType =
@@ -14,6 +15,7 @@ export type NotificationType =
   | 'task_assigned'
   | 'leave_pending'
   | 'revert_mentorship'
+  | 'notice'
   | 'system';
 
 export type EntityType =
@@ -24,6 +26,7 @@ export type EntityType =
   | 'revert'
   | 'member'
   | 'donation'
+  | 'notice'
   | 'system';
 
 export interface AppNotification {
@@ -228,7 +231,28 @@ export function resolveNotificationDestination(
     };
   }
 
-  // 8. Explicit target_tab provided (with whitelist validation)
+  // 8. Notices -> Dashboard (Staff Noticeboard)
+  if (entityType === 'notice' || notifType === 'notice') {
+    if (!canAccessNoticeboard(currentUser)) {
+      return {
+        tab: 'evaluations',
+        path: '/evaluations',
+        entityType: 'notice',
+        entityId,
+        isAuthorized: false,
+        unauthorizedMessage: 'Evaluation-only accounts cannot access the Staff Noticeboard.'
+      };
+    }
+    return {
+      tab: 'dashboard',
+      path: '/',
+      entityType: 'notice',
+      entityId,
+      isAuthorized: true
+    };
+  }
+
+  // 9. Explicit target_tab provided (with whitelist validation)
   if (notification.target_tab && isAllowedTab(notification.target_tab)) {
     const tab = notification.target_tab;
     const path = tab === 'dashboard' ? '/' : `/${tab}`;
