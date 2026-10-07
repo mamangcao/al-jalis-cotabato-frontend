@@ -204,8 +204,8 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
     if (departmentFilter !== 'All' && m.department !== departmentFilter) return false;
     return true;
   });
-  const filteredMembers = members.filter(m => m.type === 'General Member' && m.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredVolunteers = members.filter(m => m.type === 'Volunteer' && m.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredMembers = members.filter(m => m.type === 'General Member' && (m?.name ? m.name.toLowerCase().includes(searchQuery.toLowerCase()) : false));
+  const filteredVolunteers = members.filter(m => m.type === 'Volunteer' && (m?.name ? m.name.toLowerCase().includes(searchQuery.toLowerCase()) : false));
 
   const isReadOnly = !canManagePersonnel(currentUser.role);
 
@@ -308,7 +308,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                       </select>
                     </div>
                   </div>
-                  {staff.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                  {staff.filter(m => (m?.name ? m.name.toLowerCase().includes(searchQuery.toLowerCase()) : false)).length === 0 ? (
                     <div className="bg-white rounded-xl border border-gray-200 py-6">
                       <EmptyState 
                         icon={<Users size={24} />}
@@ -330,7 +330,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-gray-900">
-                          {staff.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())).map(person => (
+                          {staff.filter(m => (m?.name ? m.name.toLowerCase().includes(searchQuery.toLowerCase()) : false)).map(person => (
                             <tr key={person.id} className="hover:bg-gray-50/80 transition-colors">
                               <td className="px-5 py-3 font-medium">
                                 <div className="flex items-center gap-3">
@@ -398,7 +398,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                     </div>
                   </div>
                   
-                  {officers.filter(m => m.name.toLowerCase().includes(officerSearchQuery.toLowerCase())).length === 0 ? (
+                  {officers.filter(m => (m?.name ? m.name.toLowerCase().includes(officerSearchQuery.toLowerCase()) : false)).length === 0 ? (
                     <div className="bg-white rounded-xl border border-gray-200 py-6">
                       <EmptyState 
                         icon={<Briefcase size={24} />}
@@ -409,7 +409,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {officers
-                        .filter(m => m.name.toLowerCase().includes(officerSearchQuery.toLowerCase()))
+                        .filter(m => (m?.name ? m.name.toLowerCase().includes(officerSearchQuery.toLowerCase()) : false))
                         .map(officer => (
                         <ProfileCard 
                           key={officer.id} 

@@ -41,27 +41,37 @@ export default function CommandPalette({ isOpen, onClose, data, onNavigate }: Co
     };
   }, [isOpen]);
 
-  const filteredReverts = data.reverts.filter(r => 
-    r.name.toLowerCase().includes(query.toLowerCase()) || 
-    r.emailAddress.toLowerCase().includes(query.toLowerCase())
-  );
+  const q = query.trim().toLowerCase();
 
-  const filteredDonations = data.donations.filter(d => 
-    d.donorName.toLowerCase().includes(query.toLowerCase()) ||
-    d.amount.toString().includes(query.toLowerCase())
-  );
+  const filteredReverts = (isOpen && q && Array.isArray(data.reverts)) 
+    ? data.reverts.filter(r => 
+        (r?.name && r.name.toLowerCase().includes(q)) || 
+        (r?.emailAddress && r.emailAddress.toLowerCase().includes(q))
+      )
+    : [];
 
-  const filteredMembers = data.members.filter(m => 
-    m.name.toLowerCase().includes(query.toLowerCase()) ||
-    m.role.toLowerCase().includes(query.toLowerCase())
-  );
+  const filteredDonations = (isOpen && q && Array.isArray(data.donations))
+    ? data.donations.filter(d => 
+        (d?.donorName && d.donorName.toLowerCase().includes(q)) ||
+        (d?.amount != null && String(d.amount).toLowerCase().includes(q))
+      )
+    : [];
 
-  const filteredTasks = data.tasks.filter(t => 
-    t.title.toLowerCase().includes(query.toLowerCase()) ||
-    t.description.toLowerCase().includes(query.toLowerCase())
-  );
+  const filteredMembers = (isOpen && q && Array.isArray(data.members))
+    ? data.members.filter(m => 
+        (m?.name && m.name.toLowerCase().includes(q)) ||
+        (m?.role && m.role.toLowerCase().includes(q))
+      )
+    : [];
 
-  const hasResults = query.length > 0 && (
+  const filteredTasks = (isOpen && q && Array.isArray(data.tasks))
+    ? data.tasks.filter(t => 
+        (t?.title && t.title.toLowerCase().includes(q)) ||
+        (t?.description && t.description.toLowerCase().includes(q))
+      )
+    : [];
+
+  const hasResults = q.length > 0 && (
     filteredReverts.length > 0 || 
     filteredDonations.length > 0 || 
     filteredMembers.length > 0 || 

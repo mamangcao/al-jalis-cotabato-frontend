@@ -193,9 +193,9 @@ export default function EvaluationsPage({ members }: EvaluationsPageProps) {
   const filteredTargets = useMemo(() => {
     const q = targetSearchQuery.toLowerCase().trim();
     return availableTargets.filter(m => {
-      const matchName = m.name.toLowerCase().includes(q);
-      const matchRole = m.role.toLowerCase().includes(q);
-      const matchDept = m.department?.toLowerCase().includes(q) || false;
+      const matchName = m?.name ? m.name.toLowerCase().includes(q) : false;
+      const matchRole = m?.role ? m.role.toLowerCase().includes(q) : false;
+      const matchDept = m?.department ? m.department.toLowerCase().includes(q) : false;
       return matchName || matchRole || matchDept;
     });
   }, [availableTargets, targetSearchQuery]);

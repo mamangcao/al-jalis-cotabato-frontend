@@ -374,7 +374,7 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
     }
     
     if (filterCategory !== 'All' && d.category !== filterCategory) return false;
-    if (searchQuery && !d.donorName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (searchQuery && !(d?.donorName && d.donorName.toLowerCase().includes(searchQuery.toLowerCase()))) return false;
     return true;
   });
 

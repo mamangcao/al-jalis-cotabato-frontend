@@ -4,7 +4,7 @@ import { DateRange } from './DateRangePicker';
 import { isAfter, isBefore } from 'date-fns';
 import { Users, UserCheck, GraduationCap } from 'lucide-react';
 
-export default function DaeyahAnalytics({ reverts, dateRange }: { reverts: any[], dateRange: DateRange }) {
+export default function DaeyahAnalytics({ reverts, dateRange, members = [] }: { reverts: any[], dateRange: DateRange, members?: any[] }) {
   // Filter reverts by date range
   const filteredReverts = useMemo(() => {
     return reverts.filter(r => {
@@ -43,9 +43,10 @@ export default function DaeyahAnalytics({ reverts, dateRange }: { reverts: any[]
       }
     });
     
+    const allM = (members && members.length > 0) ? members : initialMembers;
     return Object.entries(counts)
       .map(([id, count]) => {
-        const member = initialMembers.find(m => m.id === id);
+        const member = allM.find(m => String(m.id) === String(id));
         return {
           id,
           name: member ? member.name : 'Unknown',
@@ -54,7 +55,7 @@ export default function DaeyahAnalytics({ reverts, dateRange }: { reverts: any[]
       })
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
-  }, [filteredReverts]);
+  }, [filteredReverts, members]);
 
   // Conversion Sources
   const conversionSources = useMemo(() => {

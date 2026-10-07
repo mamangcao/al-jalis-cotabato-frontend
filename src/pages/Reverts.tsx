@@ -156,7 +156,7 @@ const defaultFormData = {
   mentorshipStatus: "Pending Assignment"
 };
 
-export default function Reverts({ reverts, setReverts, dateRange }: { reverts: any[], setReverts: (r: any[]) => void, dateRange: DateRange }) {
+export default function Reverts({ reverts, setReverts, dateRange, members = [] }: { reverts: any[], setReverts: (r: any[]) => void, dateRange: DateRange, members?: any[] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("directory");
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -344,10 +344,12 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
       }
       
       // 2. Search & Select Filters
-      const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = r?.name ? r.name.toLowerCase().includes(searchTerm.toLowerCase()) : false;
       const matchesStatus = filters.status ? r.status === filters.status : true;
       const matchesGender = filters.gender ? r.gender === filters.gender : true;
-      const matchesReligion = filters.previousReligion ? r.previousReligion.toLowerCase() === filters.previousReligion.toLowerCase() : true;
+      const matchesReligion = filters.previousReligion 
+        ? (r?.previousReligion ? r.previousReligion.toLowerCase() === filters.previousReligion.toLowerCase() : false)
+        : true;
       
       return matchesDate && matchesSearch && matchesStatus && matchesGender && matchesReligion;
     });
@@ -548,7 +550,7 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
                     <tr key={person.id} className="transition-colors duration-200 ease-in-out hover:bg-gray-50">
                       <td className="px-5 py-3">
                         <span className="inline-flex items-center px-2 py-0.5 rounded font-mono text-xs font-semibold bg-neutral-100 text-neutral-800 border border-neutral-200/80">
-                          {person.serialNumber || `AAI-${getChapterCode()}-26-${person.id.padStart(4, '0').slice(-4)}`}
+                          {person.serialNumber || `AAI-${getChapterCode()}-26-${String(person.id).padStart(4, '0').slice(-4)}`}
                         </span>
                       </td>
                       <td className="px-5 py-3">
@@ -606,7 +608,7 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
         >
-          <DaeyahAnalytics reverts={reverts} dateRange={dateRange} />
+          <DaeyahAnalytics reverts={reverts} dateRange={dateRange} members={members} />
         </motion.div>
       )}
 
@@ -817,7 +819,7 @@ export default function Reverts({ reverts, setReverts, dateRange }: { reverts: a
                           <label className="block text-[13px] font-medium text-gray-600 mb-1">Facilitator</label>
                           <select value={formData.facilitatorId} onChange={e => setFormData({...formData, facilitatorId: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white transition-all outline-hidden text-gray-900 cursor-pointer">
                             <option value="">Select Facilitator</option>
-                            {initialMembers.map(member => (
+                            {(members.length > 0 ? members : initialMembers).map(member => (
                               <option key={member.id} value={member.id}>{member.name} ({member.type})</option>
                             ))}
                           </select>

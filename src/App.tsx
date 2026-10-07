@@ -51,7 +51,6 @@ import {
   canAccessLeaves,
   canAccessNoticeboard
 } from './lib/permissions';
-import { initialReverts, initialEvents, initialMembers, mockTasks, mockCampaigns, mockDonations, initialLeaves } from './data';
 import { api } from './services/api';
 
 function MainApp() {
@@ -78,14 +77,14 @@ function MainApp() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-  // Global state for sharing between tabs
-  const [reverts, setReverts] = useState(initialReverts);
-  const [events, setEvents] = useState(initialEvents);
-  const [members, setMembers] = useState(initialMembers);
-  const [tasks, setTasks] = useState(mockTasks);
-  const [campaigns, setCampaigns] = useState(mockCampaigns);
-  const [donations, setDonations] = useState(mockDonations);
-  const [leaves, setLeaves] = useState(initialLeaves);
+  // Global state for sharing between tabs (starts empty to prevent displaying stale mock data)
+  const [reverts, setReverts] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [donations, setDonations] = useState<any[]>([]);
+  const [leaves, setLeaves] = useState<any[]>([]);
   const [notices, setNotices] = useState<any[]>([]);
   
   const [dateRange, setDateRange] = useState<DateRange>({
@@ -105,7 +104,7 @@ function MainApp() {
 
       api.events.getAll()
         .then(data => {
-          if (isMounted && Array.isArray(data) && data.length > 0) {
+          if (isMounted && Array.isArray(data)) {
             setEvents(data.map((ev: any) => ({
               ...ev,
               start: new Date(ev.start),
@@ -116,27 +115,27 @@ function MainApp() {
         .catch(() => {});
 
       api.tasks.getAll()
-        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setTasks(data); })
+        .then(data => { if (isMounted && Array.isArray(data)) setTasks(data); })
         .catch(() => {});
 
       api.leaves.getAll()
-        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setLeaves(data); })
+        .then(data => { if (isMounted && Array.isArray(data)) setLeaves(data); })
         .catch(() => {});
 
       api.members.getAll()
-        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setMembers(data); })
+        .then(data => { if (isMounted && Array.isArray(data)) setMembers(data); })
         .catch(() => {});
 
       api.reverts.getAll()
-        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setReverts(data); })
+        .then(data => { if (isMounted && Array.isArray(data)) setReverts(data); })
         .catch(() => {});
 
       api.campaigns.getAll()
-        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setCampaigns(data); })
+        .then(data => { if (isMounted && Array.isArray(data)) setCampaigns(data); })
         .catch(() => {});
 
       api.donations.getAll()
-        .then(data => { if (isMounted && Array.isArray(data) && data.length > 0) setDonations(data); })
+        .then(data => { if (isMounted && Array.isArray(data)) setDonations(data); })
         .catch(() => {});
     };
 
@@ -603,6 +602,14 @@ function MainApp() {
                         setIsProfileOpen(false);
                         await logout();
                         setIsAuthenticated(false);
+                        setReverts([]);
+                        setEvents([]);
+                        setMembers([]);
+                        setTasks([]);
+                        setCampaigns([]);
+                        setDonations([]);
+                        setLeaves([]);
+                        setNotices([]);
                         toast.success('Signed out successfully');
                       }}
                     >
@@ -640,7 +647,7 @@ function MainApp() {
                   dateRange={dateRange} 
                 />
               )}
-              {activeTab === 'reverts' && <Reverts reverts={reverts} setReverts={setReverts} dateRange={dateRange} />}
+              {activeTab === 'reverts' && <Reverts reverts={reverts} setReverts={setReverts} dateRange={dateRange} members={members} />}
               {activeTab === 'calendar' && <CalendarPage events={events} setEvents={setEvents} selectedEventId={selectedEventId} onClearSelectedEvent={() => setSelectedEventId(null)} />}
               {(activeTab === 'directory' || activeTab === 'task-board') && <Operations view={activeTab} members={members} setMembers={setMembers} tasks={tasks} setTasks={setTasks} />}
               {(activeTab === 'campaigns' || activeTab === 'history') && <Donations view={activeTab} dateRange={dateRange} campaigns={campaigns} setCampaigns={setCampaigns} donations={donations} setDonations={setDonations} />}
