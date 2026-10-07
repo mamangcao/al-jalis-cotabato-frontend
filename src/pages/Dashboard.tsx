@@ -602,7 +602,7 @@ export default function Dashboard({
                   className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer"
                 >
                   <Plus size={14} />
-                  <span>+ Post Notice</span>
+                  <span>Post Official Notice</span>
                 </button>
               )}
             </div>

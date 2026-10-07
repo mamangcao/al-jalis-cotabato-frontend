@@ -8,7 +8,9 @@ import {
   ClipboardList, 
   FileText, 
   MessageSquareHeart, 
-  Users 
+  Users,
+  Megaphone,
+  Pin 
 } from 'lucide-react';
 import { Notification } from './NotificationBell';
 
@@ -79,6 +81,12 @@ export function Toast({ notification, onClose, onAction }: ToastProps) {
     if (type.includes('revert') || entityType === 'revert') {
       return <Users size={16} />;
     }
+    if (type.includes('notice') || entityType === 'notice') {
+      return <Megaphone size={16} />;
+    }
+    if (type.includes('post') || entityType === 'post') {
+      return <Pin size={16} />;
+    }
     return <Bell size={16} />;
   };
 
@@ -97,6 +105,10 @@ export function Toast({ notification, onClose, onAction }: ToastProps) {
         return 'Leave Request';
       case 'revert_mentorship':
         return 'Mentorship Needed';
+      case 'notice':
+        return 'Official Notice';
+      case 'staff_post':
+        return 'Staff Post';
       default:
         return 'Notification';
     }
@@ -110,6 +122,8 @@ export function Toast({ notification, onClose, onAction }: ToastProps) {
     if (notification.type === 'task_assigned') return 'View Task';
     if (notification.type === 'leave_pending') return 'Review Leave';
     if (notification.type === 'revert_mentorship') return 'View Revert';
+    if (notification.type === 'notice') return 'View Notice';
+    if (notification.type === 'staff_post') return 'View Post';
     return 'View Details';
   };
 
@@ -135,7 +149,7 @@ export function Toast({ notification, onClose, onAction }: ToastProps) {
             {getTitle()}
           </p>
           <p className="text-[13px] text-gray-600 mt-1 leading-snug">
-            {notification.message.replace(/^(Event Today: |Reminder: |Urgent Task: |Leave Request: |Mentorship Needed: )/, '')}
+            {notification.message.replace(/^(Event Today: |Reminder: |Urgent Task: |Leave Request: |Mentorship Needed: |Notice: |Post: )/, '')}
           </p>
           
           <button 

@@ -241,8 +241,12 @@ export default function NotificationBell({
     // 6. Staff Noticeboard Notices & Posts
     if (canAccessNoticeboard(currentUser) && notices && notices.length > 0) {
       notices.forEach(item => {
-        // Exclude items authored by current user
-        if (currentUser?.id && String(item.created_by_user_id || '') === String(currentUser.id)) {
+        // Exclude items authored by current user (prevent self-notifications)
+        const isAuthor = Boolean(
+          (currentUser?.id && String(item.created_by_user_id || '') === String(currentUser.id)) ||
+          (currentUser?.name && item.author_name && item.author_name.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
+        );
+        if (isAuthor) {
           return;
         }
 
@@ -256,7 +260,7 @@ export default function NotificationBell({
 
         const createdAt = item.created_at ? new Date(item.created_at) : new Date();
 
-        newNotifications.push({
+        const notif: Notification = {
           id: notifId,
           type: isNotice ? 'notice' : 'staff_post',
           entity_type: isNotice ? 'notice' : 'post',
@@ -269,7 +273,15 @@ export default function NotificationBell({
           action_url: '/',
           action_label: isNotice ? 'View Notice' : 'View Post',
           metadata: { itemId: item.id, itemType: item.type }
-        });
+        };
+
+        newNotifications.push(notif);
+
+        // In-app toast for recent (within last 24h), unread noticeboard items not yet dismissed in session
+        const isRecent = (Date.now() - (isNaN(createdAt.getTime()) ? Date.now() : createdAt.getTime())) < 24 * 60 * 60 * 1000;
+        if (!readIds.has(notifId) && !dismissedToastIdsRef.current.has(notifId) && isRecent && !hasTriggeredInitialToastsRef.current) {
+          toastsToTrigger.push(notif);
+        }
       });
     }
 
