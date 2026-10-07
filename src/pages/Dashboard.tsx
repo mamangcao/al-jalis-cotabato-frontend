@@ -184,11 +184,11 @@ export default function Dashboard({
     setIsSubmittingNotice(true);
     try {
       const payload = {
-        title: noticeFormData.title.trim() || null,
+        title: noticeFormData.title.trim() || undefined,
         content: noticeFormData.content.trim(),
         type: 'notice',
         audience: 'all_staff',
-        department: currentUser?.department || null
+        department: currentUser?.department || undefined
       };
       const created = await api.notices.create(payload);
       if (setNotices) {
@@ -220,7 +220,7 @@ export default function Dashboard({
         content: quickNote.trim(),
         type: 'post',
         audience: 'all_staff',
-        department: currentUser?.department || null
+        department: currentUser?.department || undefined
       });
       if (setNotices) {
         setNotices(prev => [created, ...prev]);
@@ -244,7 +244,7 @@ export default function Dashboard({
     setIsSubmittingNotice(true);
     try {
       const payload = {
-        title: editFormData.title.trim() || null,
+        title: editFormData.title.trim() || undefined,
         content: editFormData.content.trim(),
         type: editFormData.type
       };
