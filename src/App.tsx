@@ -40,7 +40,14 @@ import Login from './pages/Login';
 import NotificationBell from './components/NotificationBell';
 import DateRangePicker, { DateRange } from './components/DateRangePicker';
 import { AuthProvider, useAuth } from './AuthContext';
-import { canManagePersonnel } from './lib/permissions';
+import ForcePasswordChangeModal from './components/ForcePasswordChangeModal';
+import { 
+  canManagePersonnel, 
+  canAccessReverts, 
+  canAccessDonations, 
+  canAccessDirectory, 
+  canAccessTaskBoard 
+} from './lib/permissions';
 import { initialReverts, initialEvents, initialMembers, mockTasks, mockCampaigns, mockDonations, initialLeaves } from './data';
 import { api } from './services/api';
 
@@ -142,32 +149,51 @@ function MainApp() {
     subItems?: { id: string; label: string }[];
   }
 
-  const tabs: NavTab[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'reverts', label: 'Reverts', icon: Users },
-    { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
-    { 
-      id: 'operations', 
-      label: 'Operations', 
-      icon: Briefcase,
-      subItems: [
-        { id: 'directory', label: 'Directory' },
-        { id: 'task-board', label: 'Task Board' }
-      ]
-    },
-    {
-      id: 'donations',
-      label: 'Donations',
-      icon: Heart,
-      subItems: [
-        { id: 'campaigns', label: 'Campaigns' },
-        { id: 'history', label: 'History' }
-      ]
-    },
-    { id: 'leaves', label: 'Leaves', icon: FileText },
-    { id: 'evaluations', label: 'Peer Evaluations', icon: MessageSquareHeart },
-    { id: 'settings', label: 'System Settings', icon: Settings, adminOnly: true }
+  const isEvalOnly = currentUser.account_type === 'evaluation_only' || currentUser.role === 'evaluation_only';
+
+  const operationsSubItems = [
+    ...(canAccessDirectory(currentUser) ? [{ id: 'directory', label: 'Directory' }] : []),
+    ...(canAccessTaskBoard(currentUser) ? [{ id: 'task-board', label: 'Task Board' }] : []),
   ];
+
+  const tabs: NavTab[] = isEvalOnly
+    ? [{ id: 'evaluations', label: 'Peer Evaluations', icon: MessageSquareHeart }]
+    : [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        ...(canAccessReverts(currentUser) ? [{ id: 'reverts', label: 'Reverts', icon: Users }] : []),
+        { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
+        ...(operationsSubItems.length > 0 ? [{ 
+          id: 'operations', 
+          label: 'Operations', 
+          icon: Briefcase,
+          subItems: operationsSubItems
+        }] : []),
+        ...(canAccessDonations(currentUser) ? [{
+          id: 'donations',
+          label: 'Donations',
+          icon: Heart,
+          subItems: [
+            { id: 'campaigns', label: 'Campaigns' },
+            { id: 'history', label: 'History' }
+          ]
+        }] : []),
+        { id: 'leaves', label: 'Leaves', icon: FileText },
+        { id: 'evaluations', label: 'Peer Evaluations', icon: MessageSquareHeart },
+        { id: 'settings', label: 'System Settings', icon: Settings, adminOnly: true }
+      ];
+
+  // RBAC safety navigation guard: ensure users cannot stay on tabs they cannot access
+  useEffect(() => {
+    if (isEvalOnly && activeTab !== 'evaluations') {
+      setActiveTab('evaluations');
+    } else if (activeTab === 'directory' && !canAccessDirectory(currentUser)) {
+      setActiveTab('task-board');
+    } else if (activeTab === 'reverts' && !canAccessReverts(currentUser)) {
+      setActiveTab('dashboard');
+    } else if ((activeTab === 'donations' || activeTab === 'campaigns' || activeTab === 'history') && !canAccessDonations(currentUser)) {
+      setActiveTab('dashboard');
+    }
+  }, [currentUser, activeTab, isEvalOnly]);
 
   // Listen for manual URL navigation like /settings, /evaluations or hash navigation
   useEffect(() => {
@@ -363,6 +389,7 @@ function MainApp() {
         isOpen={isProfileModalOpen} 
         onClose={() => setIsProfileModalOpen(false)} 
       />
+      {currentUser.must_change_password && <ForcePasswordChangeModal />}
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden print:overflow-visible">
         {/* Header */}
@@ -475,13 +502,19 @@ function MainApp() {
                   <div className="text-right hidden lg:block">
                     <div className="text-sm font-semibold text-gray-900 leading-tight">{currentUser.name}</div>
                     <div className="text-[11px] text-gray-500 font-medium">
-                      {currentUser.role === 'admin_director' 
-                        ? 'Center Director' 
-                        : currentUser.role === 'admin_finance' 
-                          ? 'Finance Admin' 
-                          : currentUser.role === 'admin_hr' 
-                            ? 'HR Admin' 
-                            : 'Staff Member'}
+                      {currentUser.job_title || (
+                        currentUser.role === 'admin_director' || currentUser.role === 'director'
+                          ? 'Center Director'
+                          : currentUser.role === 'admin_finance' || currentUser.role === 'finance'
+                            ? 'Finance Admin'
+                            : currentUser.role === 'admin_hr' || currentUser.role === 'hr'
+                              ? 'HR Admin'
+                              : currentUser.role === 'executive_secretary'
+                                ? 'Executive Secretary'
+                                : currentUser.account_type === 'evaluation_only'
+                                  ? 'Evaluation Account'
+                                  : 'Staff Member'
+                      )}
                     </div>
                     <div className="text-xs text-gray-500">Dept: {currentUser.department}</div>
                   </div>

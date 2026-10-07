@@ -1,7 +1,22 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from './services/api';
 
-export type Role = 'admin_finance' | 'admin_director' | 'staff' | 'admin' | 'admin_hr' | 'admin_dept_head';
+export type Role = 
+  | 'super_admin'
+  | 'director'
+  | 'admin_director'
+  | 'admin'
+  | 'hr'
+  | 'admin_hr'
+  | 'finance'
+  | 'admin_finance'
+  | 'executive_secretary'
+  | 'department_head'
+  | 'department_secretary'
+  | 'department_staff'
+  | 'staff'
+  | 'evaluation_only'
+  | string;
 
 export interface User {
   id: string;
@@ -9,6 +24,11 @@ export interface User {
   role: Role;
   department: string;
   email?: string;
+  staff_id?: string;
+  job_title?: string;
+  account_type?: 'standard' | 'evaluation_only';
+  must_change_password?: boolean;
+  status?: string;
   member_id?: number | null;
 }
 
@@ -24,6 +44,8 @@ const EMPTY_USER: User = {
   name: '',
   role: 'staff',
   department: '',
+  account_type: 'standard',
+  must_change_password: false,
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

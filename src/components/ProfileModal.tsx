@@ -67,6 +67,10 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         new_password: newPassword,
         new_password_confirmation: confirmPassword,
       });
+      setCurrentUser({
+        ...currentUser,
+        must_change_password: false,
+      });
       toast.success('Password changed successfully!');
       setCurrentPassword('');
       setNewPassword('');

@@ -232,6 +232,16 @@ class ApiService {
     }),
   };
 
+  // ================= User Provisioning & Management =================
+  users = {
+    getAll: () => this.request<any[]>('/users'),
+    getNextStaffId: () => this.request<{ staff_id: string }>('/users/next-id'),
+    create: (data: any) => this.request<any>('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  };
+
   // ================= Uploads =================
   uploadFile = async (file: File): Promise<{ url: string; path: string; name: string }> => {
     const token = this.getToken();

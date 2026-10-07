@@ -3,14 +3,15 @@ import React, { useState, useEffect } from 'react';
 import GlobalPillTabs from '../components/ui/GlobalPillTabs';
 import { useAuth } from '../AuthContext';
 import toast from 'react-hot-toast';
-import { canManagePersonnel } from '../lib/permissions';
+import { canManagePersonnel, canProvisionAccounts, canAccessDirectory } from '../lib/permissions';
 import { DEPARTMENTS } from '../utils/constants';
 import { getStoredDepartments } from '../utils/systemSettings';
-import { Briefcase, CheckSquare, Users, Phone, Mail, Plus, Edit2, Trash2, X, Search, Filter } from 'lucide-react';
+import { Briefcase, CheckSquare, Users, Phone, Mail, Plus, Edit2, Trash2, X, Search, Filter, UserPlus, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 import TaskBoard from '../components/TaskBoard';
 import EmptyState from '../components/EmptyState';
+import ProvisionUserModal from '../components/ProvisionUserModal';
 import { createPortal } from 'react-dom';
 import { api } from '../services/api';
 
@@ -88,6 +89,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
   }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isProvisionModalOpen, setIsProvisionModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<any>(null);
   const [memberToDelete, setMemberToDelete] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('center_staff');
@@ -196,14 +198,27 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
           <h1 className="text-[24px] font-bold text-gray-900 mb-2 tracking-tight">{view === 'directory' ? 'Personnel Directory' : 'Operations'}</h1>
           <p className="text-[14px] text-gray-500">Manage directory and tasks.</p>
         </div>
-        {view === 'directory' && canManagePersonnel(currentUser.role) && (
-          <button 
-            onClick={handleAddClick}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] hover:shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
-          >
-            <Plus size={18} />
-            Add Member
-          </button>
+        {view === 'directory' && canAccessDirectory(currentUser) && (
+          <div className="flex items-center gap-2.5">
+            {canProvisionAccounts(currentUser) && (
+              <button 
+                onClick={() => setIsProvisionModalOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] hover:shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
+              >
+                <UserPlus size={18} />
+                Provision Account
+              </button>
+            )}
+            {canManagePersonnel(currentUser.role) && (
+              <button 
+                onClick={handleAddClick}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] hover:shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
+              >
+                <Plus size={18} />
+                Add Member
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -211,6 +226,23 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
       <div>
         <AnimatePresence mode="wait">
           {view === 'directory' ? (
+            !canAccessDirectory(currentUser) ? (
+              <motion.div
+                key="directory-restricted"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="bg-white rounded-2xl border border-gray-200 p-12 text-center max-w-lg mx-auto my-12"
+              >
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
+                  <ShieldAlert size={32} />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Restricted Access</h3>
+                <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                  The Personnel Directory is confidential and restricted to authorized administrative roles.
+                </p>
+              </motion.div>
+            ) : (
             <motion.div
               key="directory"
               initial={{ opacity: 0, y: 10 }}
@@ -556,6 +588,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                 </div>
               )}
             </motion.div>
+            )
           ) : (
             <motion.div
               key="tasks"
@@ -724,6 +757,14 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
         onConfirm={confirmDelete}
         title="Remove Member"
         message="Are you sure you want to remove this member? This action cannot be undone."
+      />
+
+      <ProvisionUserModal
+        isOpen={isProvisionModalOpen}
+        onClose={() => setIsProvisionModalOpen(false)}
+        onSuccess={() => {
+          api.members.getAll().then(setMembers).catch(() => {});
+        }}
       />
     </div>
   );
