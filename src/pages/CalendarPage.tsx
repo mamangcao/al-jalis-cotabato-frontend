@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
-import { Plus, X, Trash2, ChevronLeft, ChevronRight, Printer, Download, ChevronDown, FileDown, Loader2 } from 'lucide-react';
+import { Plus, X, Trash2, ChevronLeft, ChevronRight, Printer, Download, ChevronDown, FileDown, Loader2, Edit, MapPin, Clock, Calendar as CalendarIcon, AlignLeft, Repeat } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
 import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
@@ -10,6 +10,7 @@ import { getDay } from 'date-fns/getDay';
 import { enUS } from 'date-fns/locale/en-US';
 import { addHours, startOfDay, endOfDay, subYears, addYears, subDays, addDays, subWeeks, addWeeks, subMonths, addMonths, isSameDay } from 'date-fns';
 import { generateInstances } from '../utils/recurrence';
+import { formatDisplayDate } from '../utils/dateUtils';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -239,6 +240,12 @@ export default function CalendarPage({
   const startingDayOfWeek = new Date(targetYear, activeMonthIndex, 1).getDay();
   const totalDaysInMonth = new Date(targetYear, activeMonthIndex + 1, 0).getDate();
   const [currentView, setCurrentView] = useState<any>(Views.MONTH);
+  
+  // Dedicated state separating event viewing from event editing
+  const [viewingEvent, setViewingEvent] = useState<any | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  // Edit / Create event modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState(defaultFormData);
   const [isEditing, setIsEditing] = useState(false);
@@ -339,55 +346,86 @@ export default function CalendarPage({
     return generateInstances(events, start, end);
   }, [events]);
 
-  const handleOpenModal = (event?: any) => {
-    if (event && event.id) {
-      setIsEditing(true);
-      setFormData({
-        id: event.id,
-        title: event.title,
-        startDate: format(new Date(event.start), 'yyyy-MM-dd'),
-        startTime: format(new Date(event.start), 'HH:mm'),
-        endDate: format(new Date(event.end), 'yyyy-MM-dd'),
-        endTime: format(new Date(event.end), 'HH:mm'),
-        allDay: event.allDay || false,
-        type: event.type || 'event',
-        location: event.location || '',
-        description: event.description || '',
-        isRecurring: event.isRecurring || false,
-        recurrence: event.recurrence || defaultFormData.recurrence
-      });
-    } else {
-      setIsEditing(false);
-      const start = event?.start || new Date();
-      const end = event?.end || addHours(start, 1);
-      setFormData({
-        ...defaultFormData,
-        startDate: format(start, 'yyyy-MM-dd'),
-        startTime: format(start, 'HH:mm'),
-        endDate: format(end, 'yyyy-MM-dd'),
-        endTime: format(end, 'HH:mm'),
-        allDay: event?.allDay || false
-      });
+  // ── Modal Handlers: Viewing vs. Editing ─────────────────────────────────
+  
+  // Open dedicated View Event modal (read-only)
+  const handleViewEvent = (event: any) => {
+    if (!event) return;
+    setViewingEvent(event);
+    setIsViewModalOpen(true);
+  };
+
+  const handleCloseViewModal = () => {
+    setIsViewModalOpen(false);
+    setViewingEvent(null);
+  };
+
+  // Open Edit Event modal for a specific event
+  const handleOpenEditModal = (event: any) => {
+    if (!canManageOperations(currentUser.role)) {
+      toast.error('Unauthorized: Operations access required to edit events.');
+      return;
     }
+    // Close view modal if transitioning from View -> Edit
+    setIsViewModalOpen(false);
+    setViewingEvent(null);
+
+    setIsEditing(true);
+    setFormData({
+      id: event.id,
+      title: event.title || '',
+      startDate: format(new Date(event.start), 'yyyy-MM-dd'),
+      startTime: format(new Date(event.start), 'HH:mm'),
+      endDate: format(new Date(event.end), 'yyyy-MM-dd'),
+      endTime: format(new Date(event.end), 'HH:mm'),
+      allDay: event.allDay || false,
+      type: event.type || 'event',
+      location: event.location || '',
+      description: event.description || '',
+      isRecurring: event.isRecurring || false,
+      recurrence: event.recurrence || defaultFormData.recurrence
+    });
     setIsModalOpen(true);
   };
 
-  // Handle opening selected event from notification / external navigation
+  // Open Create Event modal for a new event / slot selection
+  const handleOpenCreateModal = (slotInfo?: any) => {
+    if (!canManageOperations(currentUser.role)) {
+      toast.error('Unauthorized: Operations access required to add events.');
+      return;
+    }
+    setIsEditing(false);
+    const start = slotInfo?.start || new Date();
+    const end = slotInfo?.end || addHours(start, 1);
+    setFormData({
+      ...defaultFormData,
+      startDate: format(start, 'yyyy-MM-dd'),
+      startTime: format(start, 'HH:mm'),
+      endDate: format(end, 'yyyy-MM-dd'),
+      endTime: format(end, 'HH:mm'),
+      allDay: slotInfo?.allDay || false
+    });
+    setIsModalOpen(true);
+  };
+
+  // Handle opening selected event from notification / deep link navigation:
+  // MUST open in View Event modal, NEVER in Edit Event modal!
   React.useEffect(() => {
     if (selectedEventId) {
-      const eventToSelect = events.find(e => String(e.id) === String(selectedEventId));
+      const eventToSelect = visibleEvents.find(e => String(e.id) === String(selectedEventId) || String(e.masterId) === String(selectedEventId)) ||
+                            events.find(e => String(e.id) === String(selectedEventId));
       if (eventToSelect) {
         const eventStart = new Date(eventToSelect.start);
         if (!isNaN(eventStart.getTime())) {
           setCurrentDate(new Date(eventStart.getFullYear(), eventStart.getMonth(), 1));
         }
-        handleOpenModal(eventToSelect);
+        handleViewEvent(eventToSelect);
       } else {
         toast.error('This event is no longer available.');
       }
       onClearSelectedEvent?.();
     }
-  }, [selectedEventId, events]);
+  }, [selectedEventId, visibleEvents, events]);
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
@@ -605,7 +643,7 @@ export default function CalendarPage({
         </div>
         {canManageOperations(currentUser.role) && (
           <button 
-            onClick={() => handleOpenModal()}
+            onClick={() => handleOpenCreateModal()}
             className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] hover:shadow-md flex items-center justify-center gap-2"
           >
             <Plus size={18} />
@@ -670,8 +708,8 @@ export default function CalendarPage({
             onView={(newView) => setCurrentView(newView)}
             onEventDrop={onEventDrop}
             onEventResize={onEventResize}
-            onSelectEvent={(event) => handleOpenModal(event)}
-            onSelectSlot={(slotInfo) => handleOpenModal(slotInfo)}
+            onSelectEvent={(event) => handleViewEvent(event)}
+            onSelectSlot={(slotInfo) => handleOpenCreateModal(slotInfo)}
             selectable
             resizable
             views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
@@ -684,6 +722,149 @@ export default function CalendarPage({
         </div>
       </CalendarExportContext.Provider>
 
+      {/* Dedicated View Event Modal */}
+      <AnimatePresence>
+        {isViewModalOpen && viewingEvent && (
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={handleCloseViewModal}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative bg-white shadow-xl w-[95%] sm:w-[500px] md:max-w-xl max-h-[90vh] overflow-y-auto mx-auto rounded-xl flex flex-col"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-[#F9FAFB]">
+                <div className="flex items-center gap-2.5">
+                  <span className={`inline-block w-3 h-3 rounded-full ${eventColors[viewingEvent.type as keyof typeof eventColors] || 'bg-orange-500'}`} />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    {viewingEvent.type ? String(viewingEvent.type).charAt(0).toUpperCase() + String(viewingEvent.type).slice(1) : 'Event'} Details
+                  </span>
+                </div>
+                <button 
+                  onClick={handleCloseViewModal} 
+                  className="text-gray-400 hover:text-gray-600 transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97] p-1 rounded-md"
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5 space-y-5 overflow-y-auto">
+                {/* Event Title */}
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 leading-snug break-words">
+                    {viewingEvent.title || 'Untitled Event'}
+                  </h2>
+                </div>
+
+                {/* Event Details Grid */}
+                <div className="space-y-3.5 bg-gray-50/80 p-4 rounded-xl border border-gray-100 text-sm">
+                  {/* Date */}
+                  <div className="flex items-start gap-3">
+                    <CalendarIcon size={18} className="text-orange-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-gray-500">Date</p>
+                      <p className="font-semibold text-gray-800">
+                        {formatDisplayDate(viewingEvent.start)}
+                        {viewingEvent.end && !isSameDay(new Date(viewingEvent.start), new Date(viewingEvent.end)) && (
+                          <span> – {formatDisplayDate(viewingEvent.end)}</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Time */}
+                  <div className="flex items-start gap-3">
+                    <Clock size={18} className="text-orange-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-gray-500">Time</p>
+                      <p className="font-semibold text-gray-800">
+                        {viewingEvent.allDay ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">All-day event</span>
+                        ) : (
+                          `${format(new Date(viewingEvent.start), 'h:mm a')} – ${format(new Date(viewingEvent.end), 'h:mm a')}`
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Location */}
+                  {viewingEvent.location && (
+                    <div className="flex items-start gap-3">
+                      <MapPin size={18} className="text-orange-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-medium text-gray-500">Location</p>
+                        <p className="font-semibold text-gray-800 break-words">{viewingEvent.location}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recurring indicator */}
+                  {(viewingEvent.isRecurring || viewingEvent.isInstance) && (
+                    <div className="flex items-start gap-3">
+                      <Repeat size={18} className="text-orange-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-medium text-gray-500">Recurrence</p>
+                        <p className="font-medium text-gray-700 capitalize">
+                          {viewingEvent.recurrence?.frequency ? `Repeats ${viewingEvent.recurrence.frequency}` : 'Repeating series event'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Description */}
+                {viewingEvent.description ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      <AlignLeft size={14} />
+                      <span>Description</span>
+                    </div>
+                    <div className="text-sm text-gray-700 bg-white border border-gray-100 p-3.5 rounded-lg whitespace-pre-wrap leading-relaxed">
+                      {viewingEvent.description}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs italic text-gray-400">No additional description provided.</p>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div className="px-6 py-4 border-t border-gray-200 bg-[#F9FAFB] flex justify-between items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleCloseViewModal}
+                  className="px-4 py-2 text-[14px] font-semibold text-gray-700 hover:text-gray-900 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97] cursor-pointer"
+                >
+                  Close
+                </button>
+
+                {/* Edit button: Only rendered and enabled when user has permission */}
+                {canManageOperations(currentUser.role) && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditModal(viewingEvent)}
+                    className="px-4 py-2 text-[14px] font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] hover:shadow-md flex items-center justify-center gap-2 cursor-pointer min-w-[100px]"
+                  >
+                    <Edit size={16} />
+                    <span>Edit Event</span>
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit / Create Event Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
