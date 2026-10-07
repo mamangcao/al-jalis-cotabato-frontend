@@ -141,7 +141,12 @@ class ApiService {
 
   // ================= Tasks =================
   tasks = {
-    getAll: () => this.request<any[]>('/tasks'),
+    getAll: (params?: { scope?: 'my' | 'department' | 'all'; department?: string; status?: string; priority?: string }) => {
+      const qs = params ? '?' + new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== '')) as Record<string, string>
+      ).toString() : '';
+      return this.request<any[]>(`/tasks${qs}`);
+    },
     get: (id: string | number) => this.request<any>(`/tasks/${id}`),
     create: (data: any) => this.request<any>('/tasks', {
       method: 'POST',
