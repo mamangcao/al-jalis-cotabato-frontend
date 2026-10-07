@@ -328,18 +328,18 @@ export default function Dashboard({
       preset: dateRange?.preset || 'all_time',
     };
     if (dateRange?.startDate) {
-      params.startDate = format(dateRange.startDate, 'yyyy-MM-dd');
+      const s = format(dateRange.startDate, 'yyyy-MM-dd');
+      params.startDate = s;
+      params.start_date = s;
     }
     if (dateRange?.endDate) {
-      params.endDate = format(dateRange.endDate, 'yyyy-MM-dd');
+      const e = format(dateRange.endDate, 'yyyy-MM-dd');
+      params.endDate = e;
+      params.end_date = e;
     }
 
-    // If user has reverts access, fetch comprehensive stats endpoint; otherwise fetch general KPIs
-    const fetchPromise = canAccessReverts(currentUser)
-      ? api.reverts.getStats(params, { signal: controller.signal })
-      : api.dashboard.getKpis(params, { signal: controller.signal });
-
-    fetchPromise
+    // Unified dashboard stats endpoint handles role-based authorization seamlessly
+    api.dashboard.getStats(params, { signal: controller.signal })
       .then(res => {
         if (isMounted && res) {
           setDashboardStats(res);
@@ -371,11 +371,19 @@ export default function Dashboard({
   const summaryData = useMemo(() => {
     const isAllTime = dateRange?.preset === 'all_time' || (!dateRange?.startDate && !dateRange?.endDate);
 
-    // 1. Total Reverts / Period Reverts (Date-Dependent Analytics)
+    // 1. Total Reverts / Period Reverts (Decoupled from table pagination)
     const hasRevertsAccess = canAccessReverts(currentUser);
-    const totalRevertsCount = isAllTime 
-      ? (dashboardStats?.totalReverts ?? reverts.length)
-      : (dashboardStats?.periodReverts ?? 0);
+    const totalCount = dashboardStats?.totalReverts ?? dashboardStats?.reverts?.total;
+    const periodCount = dashboardStats?.periodReverts ?? dashboardStats?.reverts?.period;
+
+    let revertsDisplayValue = '—';
+    if (hasRevertsAccess) {
+      if (isAllTime) {
+        revertsDisplayValue = totalCount != null ? totalCount.toString() : (isLoadingStats ? '...' : '0');
+      } else {
+        revertsDisplayValue = periodCount != null ? periodCount.toString() : (isLoadingStats ? '...' : '0');
+      }
+    }
 
     let revertsSubtitle = '— All time';
     if (!isAllTime) {
@@ -406,7 +414,7 @@ export default function Dashboard({
       { 
         id: 'reverts',
         title: isAllTime ? 'Total Reverts' : 'Reverts in Period', 
-        value: hasRevertsAccess ? totalRevertsCount.toString() : '—', 
+        value: revertsDisplayValue, 
         subtitle: hasRevertsAccess ? revertsSubtitle : '— Restricted', 
         scope: 'Reporting Period',
         scopeBg: 'bg-orange-50 text-orange-700 border-orange-200',
@@ -456,7 +464,7 @@ export default function Dashboard({
         targetTab: 'calendar'
       },
     ];
-  }, [reverts, tasks, leaves, events, dashboardStats, dateRange, currentUser]);
+  }, [tasks, leaves, events, dashboardStats, dateRange, currentUser, isLoadingStats]);
 
   // ── Chart Subtitle ────────────────────────────────────────────────────────
   const chartSubtitle = useMemo(() => {
@@ -543,10 +551,6 @@ export default function Dashboard({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Operations Command Center</h1>
-            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Live • Cotabato Chapter
-            </span>
           </div>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
             Centralized monitoring of active programs, operational workflows, and official organizational updates.
@@ -636,7 +640,7 @@ export default function Dashboard({
               <TrendingUp size={18} className="text-orange-500" />
               <h2 className="text-[16px] font-semibold text-gray-900">Reversions Over Time</h2>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
-                Reporting Context
+                Reporting Period
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">{chartSubtitle}</p>
@@ -650,42 +654,54 @@ export default function Dashboard({
         </div>
 
         {canAccessReverts(currentUser) ? (
-          <div className="w-full h-[300px]" style={{ minHeight: 300, minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={300}>
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="revertGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#FF6B00" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#FF6B00" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                <XAxis 
-                  dataKey="name" 
-                  tick={{ fontSize: 11, fill: '#64748B' }} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  interval="preserveStartEnd"
-                />
-                <YAxis 
-                  tick={{ fontSize: 11, fill: '#64748B' }} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  allowDecimals={false}
-                />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  itemStyle={{ color: '#FF6B00', fontWeight: 600 }}
-                  formatter={(value: any) => [`${value} reverts`, 'Reversions']}
-                  labelFormatter={(label: any, payload: any) => {
-                    const item = payload?.[0]?.payload;
-                    return item?.fullName || label;
-                  }}
-                />
-                <Area type="monotone" dataKey="reverts" stroke="#FF6B00" strokeWidth={2.5} fill="url(#revertGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          isLoadingStats && (!chartData || chartData.length === 0) ? (
+            <div className="w-full h-[300px] flex flex-col items-center justify-center text-gray-400 bg-gray-50/40 rounded-lg border border-dashed border-gray-200">
+              <Loader2 size={24} className="animate-spin text-orange-500 mb-2" />
+              <span className="text-xs font-medium text-gray-500">Loading reversion analytics...</span>
+            </div>
+          ) : chartData.length === 0 ? (
+            <div className="w-full h-[300px] flex flex-col items-center justify-center text-gray-400 bg-gray-50/40 rounded-lg border border-dashed border-gray-200">
+              <Users size={28} className="text-gray-300 mb-2" />
+              <span className="text-xs font-medium text-gray-500">No reversion records recorded for this period</span>
+            </div>
+          ) : (
+            <div className="w-full h-[300px] min-w-0" style={{ minHeight: 300, minWidth: 0 }}>
+              <ResponsiveContainer width="100%" height={300} minWidth={0} minHeight={300} debounce={50}>
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="revertGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#FF6B00" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#FF6B00" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fontSize: 11, fill: '#64748B' }} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 11, fill: '#64748B' }} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    allowDecimals={false}
+                  />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    itemStyle={{ color: '#FF6B00', fontWeight: 600 }}
+                    formatter={(value: any) => [`${value} reverts`, 'Reversions']}
+                    labelFormatter={(label: any, payload: any) => {
+                      const item = payload?.[0]?.payload;
+                      return item?.fullName || label;
+                    }}
+                  />
+                  <Area type="monotone" dataKey="reverts" stroke="#FF6B00" strokeWidth={2.5} fill="url(#revertGrad)" isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )
         ) : (
           <div className="h-[260px] flex flex-col items-center justify-center text-center p-6 bg-gray-50/50 rounded-lg border border-dashed border-gray-200 text-gray-400">
             <Info size={32} className="mb-2 text-gray-400" />
