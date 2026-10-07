@@ -7,6 +7,7 @@ import { getSystemSettings, isDateInRestrictedPeriod } from '../utils/systemSett
 import { formatDisplayDate } from '../utils/dateUtils';
 import { api } from '../services/api';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
+import Pagination from '../components/Pagination';
 
 const calculateDays = (startDate: string, endDate: string) => {
   if (!startDate || !endDate) return 0;
@@ -50,9 +51,59 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
     attestation: false
   });
 
-  const visibleLeaves = isAdmin
-    ? leaves
-    : leaves.filter(l => l.employeeId === currentUser.id);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
+  const [paginatedLeaves, setPaginatedLeaves] = useState<any[]>([]);
+  const [paginationMeta, setPaginationMeta] = useState({
+    total: 0,
+    lastPage: 1,
+    from: 0,
+    to: 0,
+  });
+  const [isLoadingLeaves, setIsLoadingLeaves] = useState(false);
+
+  const fetchLeaves = async () => {
+    setIsLoadingLeaves(true);
+    try {
+      const res = await api.leaves.getAll({
+        page: currentPage,
+        per_page: perPage,
+        sort: 'id',
+        direction: 'desc',
+      });
+      if (res && res.data) {
+        setPaginatedLeaves(res.data);
+        setPaginationMeta({
+          total: res.total ?? res.data.length,
+          lastPage: res.last_page ?? 1,
+          from: res.from ?? 1,
+          to: res.to ?? res.data.length,
+        });
+        if (setLeaves) setLeaves(res.data);
+      } else if (Array.isArray(res)) {
+        setPaginatedLeaves(res);
+        setPaginationMeta({
+          total: res.length,
+          lastPage: 1,
+          from: res.length > 0 ? 1 : 0,
+          to: res.length,
+        });
+        if (setLeaves) setLeaves(res);
+      }
+    } catch (err) {
+      console.error('Failed to load leaves:', err);
+    } finally {
+      setIsLoadingLeaves(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeaves();
+  }, [currentPage, perPage]);
+
+  const visibleLeaves = paginatedLeaves.length > 0 
+    ? paginatedLeaves 
+    : (isAdmin ? leaves : leaves.filter(l => l.employeeId === currentUser.id));
 
   const [sysSettings, setSysSettings] = useState(() => getSystemSettings());
 
@@ -429,7 +480,16 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {visibleLeaves.length === 0 ? (
+              {isLoadingLeaves ? (
+                <tr>
+                  <td colSpan={isAdmin ? 7 : 5} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                      <span className="text-xs text-gray-500 font-medium">Loading leave requests...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : visibleLeaves.length === 0 ? (
                 <tr>
                   <td colSpan={isAdmin ? 7 : 5} className="px-6 py-8 text-center text-gray-500">
                     No leave requests found.
@@ -491,6 +551,21 @@ export default function LeaveManagement({ leaves, setLeaves }: { leaves: any[], 
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          lastPage={paginationMeta.lastPage}
+          perPage={perPage}
+          total={paginationMeta.total}
+          from={paginationMeta.from}
+          to={paginationMeta.to}
+          isLoading={isLoadingLeaves}
+          onPageChange={(p) => setCurrentPage(p)}
+          onPerPageChange={(pp) => {
+            setPerPage(pp);
+            setCurrentPage(1);
+          }}
+        />
       </div>
 
       {isFormOpen && createPortal(

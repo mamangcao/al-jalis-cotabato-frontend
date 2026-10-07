@@ -17,6 +17,7 @@ import { generateRevertSerial, getChapterCode } from '../utils/revertSerial';
 import { formatDisplayDate } from '../utils/dateUtils';
 import { api } from '../services/api';
 import toast from 'react-hot-toast';
+import Pagination from '../components/Pagination';
 
 function PrintPreviewModal({ revert, onClose }: { revert: any, onClose: () => void }) {
   const documentRef = useRef<HTMLDivElement>(null);
@@ -176,6 +177,93 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
     setTimeout(() => setPrintRevert(null), 200);
   };
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
+  const [paginatedReverts, setPaginatedReverts] = useState<any[]>([]);
+  const [paginationMeta, setPaginationMeta] = useState({
+    total: 0,
+    lastPage: 1,
+    from: 0,
+    to: 0,
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [stats, setStats] = useState<any>(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    status: '',
+    gender: '',
+    previousReligion: ''
+  });
+
+  const fetchStats = async () => {
+    try {
+      const res = await api.reverts.getStats();
+      if (res) setStats(res);
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchReverts = async () => {
+    setIsLoading(true);
+    try {
+      const params: any = {
+        page: currentPage,
+        per_page: perPage,
+        sort: 'id',
+        direction: 'desc',
+      };
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      if (filters.status) params.status = filters.status;
+      if (filters.gender) params.gender = filters.gender;
+      if (filters.previousReligion) params.previousReligion = filters.previousReligion;
+      if (dateRange?.startDate) params.startDate = format(dateRange.startDate, 'yyyy-MM-dd');
+      if (dateRange?.endDate) params.endDate = format(dateRange.endDate, 'yyyy-MM-dd');
+
+      const res = await api.reverts.getAll(params);
+      if (res && res.data) {
+        setPaginatedReverts(res.data);
+        setPaginationMeta({
+          total: res.total ?? res.data.length,
+          lastPage: res.last_page ?? 1,
+          from: res.from ?? 1,
+          to: res.to ?? res.data.length,
+        });
+        if (setReverts) setReverts(res.data);
+      } else if (Array.isArray(res)) {
+        setPaginatedReverts(res);
+        setPaginationMeta({
+          total: res.length,
+          lastPage: 1,
+          from: res.length > 0 ? 1 : 0,
+          to: res.length,
+        });
+        if (setReverts) setReverts(res);
+      }
+    } catch (err) {
+      console.error('Failed to load reverts:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReverts();
+  }, [currentPage, perPage, debouncedSearch, filters, dateRange]);
+
   const handleDeleteRevert = (id: string) => {
     setRevertToDelete(id);
   };
@@ -184,14 +272,11 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
     if (revertToDelete) {
       setIsDeleting(true);
       try {
-        try {
-          await api.reverts.delete(revertToDelete);
-        } catch (err) {
-          console.warn('Backend delete failed, updated locally:', err);
-        }
-        setReverts(reverts.filter((r) => r.id !== revertToDelete));
+        await api.reverts.delete(revertToDelete);
         setRevertToDelete(null);
         toast.success("Revert deleted successfully.");
+        await fetchReverts();
+        await fetchStats();
       } catch (error: any) {
         toast.error(error?.message || "Failed to delete revert.");
       } finally {
@@ -199,14 +284,6 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
       }
     }
   };
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filters, setFilters] = useState({
-    status: '',
-    gender: '',
-    previousReligion: ''
-  });
 
   const [formData, setFormData] = useState(defaultFormData);
   const [isCertified, setIsCertified] = useState(false);
@@ -227,11 +304,11 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
       const res = await api.reverts.getNextSerial();
       if (res && res.serialNumber) nextSerial = res.serialNumber;
     } catch {
-      nextSerial = await generateRevertSerial(reverts);
+      nextSerial = await generateRevertSerial(paginatedReverts);
     }
     setFormData({
       ...defaultFormData,
-      serialNumber: nextSerial || await generateRevertSerial(reverts),
+      serialNumber: nextSerial || await generateRevertSerial(paginatedReverts),
     });
     setIsCertified(false);
     setIsModalOpen(true);
@@ -255,30 +332,15 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
     setIsSubmitting(true);
     try {
       if (editingId) {
-        try {
-          const updated = await api.reverts.update(editingId, formData);
-          setReverts(reverts.map(r => r.id === editingId ? { ...r, ...updated } : r));
-        } catch (err) {
-          console.warn('Backend update failed, updated locally:', err);
-          setReverts(reverts.map(r => r.id === editingId ? { ...formData, id: editingId } : r));
-        }
+        await api.reverts.update(editingId, formData);
         toast.success("Revert updated successfully.");
       } else {
-        try {
-          const created = await api.reverts.create(formData);
-          setReverts([created, ...reverts]);
-        } catch (err) {
-          console.warn('Backend create failed, saved locally:', err);
-          const newRevert = {
-            id: String(1000 + reverts.length + 1),
-            createdAt: new Date().toISOString(),
-            ...formData
-          };
-          setReverts([newRevert, ...reverts]);
-        }
+        await api.reverts.create(formData);
         toast.success("Revert created successfully.");
       }
       handleCloseModal();
+      await fetchReverts();
+      await fetchStats();
     } catch (error: any) {
       toast.error(error?.message || "Failed to save revert.");
     } finally {
@@ -287,73 +349,14 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
   };
 
   const statData = useMemo(() => {
-    // 1. Total Reverts within the selected date range
-    const totalTrend = calculateTrend(reverts, 'reversionDate', dateRange?.startDate, dateRange?.endDate);
-    
-    // 2. Reverts This Year (always relative to current year, unaffected by global date range or limited by it?)
-    // Actually, "Reverts This Year" usually implies the current calendar year.
-    const yearStart = startOfYear(new Date());
-    const yearTrend = calculateTrend(reverts, 'reversionDate', yearStart, new Date());
-    
-    // 3. Reverts This Month
-    const monthStart = startOfMonth(new Date());
-    const monthTrend = calculateTrend(reverts, 'reversionDate', monthStart, new Date());
-    
-    // 4. Top Previous Religion within the selected date range
-    const counts: Record<string, number> = {};
-    reverts.forEach(r => {
-      let matchesDate = true;
-      if (dateRange?.startDate && r.reversionDate) {
-        const itemDate = new Date(r.reversionDate);
-        const currentEnd = dateRange.endDate || new Date();
-        matchesDate = (isAfter(itemDate, dateRange.startDate) || itemDate.getTime() === dateRange.startDate.getTime()) && 
-                      (isBefore(itemDate, currentEnd) || itemDate.getTime() === currentEnd.getTime());
-      }
-      if (matchesDate && r.previousReligion) {
-         counts[r.previousReligion] = (counts[r.previousReligion] || 0) + 1;
-      }
-    });
-
-    let topRel = 'None';
-    let maxCount = 0;
-    for (const [rel, count] of Object.entries(counts)) {
-      if (count > maxCount) {
-        maxCount = count;
-        topRel = rel;
-      }
-    }
-
     return {
-      totalTrend,
-      yearTrend,
-      monthTrend,
-      topReligion: { name: topRel, count: maxCount }
+      totalCount: stats?.totalReverts ?? paginationMeta.total,
+      yearCount: stats?.revertsThisYear ?? 0,
+      monthCount: stats?.shahadahsThisMonth ?? 0,
+      topReligion: stats?.topReligion ?? { name: 'None', count: 0 },
+      religionsList: stats?.religionsList ?? [],
     };
-  }, [reverts, dateRange]);
-
-  const filteredReverts = useMemo(() => {
-    return reverts.filter(r => {
-      // 1. Date Range Filter
-      let matchesDate = true;
-      if (dateRange?.startDate && r.reversionDate) {
-        const itemDate = new Date(r.reversionDate);
-        const currentEnd = dateRange.endDate || new Date();
-        
-        matchesDate = (isAfter(itemDate, dateRange.startDate) || itemDate.getTime() === dateRange.startDate.getTime()) && 
-                      (isBefore(itemDate, currentEnd) || itemDate.getTime() === currentEnd.getTime());
-      }
-      
-      // 2. Search & Select Filters
-      const matchesSearch = r?.name ? r.name.toLowerCase().includes(searchTerm.toLowerCase()) : false;
-      const matchesStatus = filters.status ? r.status === filters.status : true;
-      const matchesGender = filters.gender ? r.gender === filters.gender : true;
-      const matchesReligion = filters.previousReligion 
-        ? (r?.previousReligion ? r.previousReligion.toLowerCase() === filters.previousReligion.toLowerCase() : false)
-        : true;
-      
-      return matchesDate && matchesSearch && matchesStatus && matchesGender && matchesReligion;
-    });
-  }, [reverts, dateRange, searchTerm, filters]);
+  }, [stats, paginationMeta.total]);
 
   return (
     <>
@@ -394,38 +397,24 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
           <div className="bg-white p-3 sm:p-5 rounded-xl border border-gray-200 shadow-custom transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-gray-300">
             <div className="text-xs sm:text-sm font-medium text-gray-500 mb-2 truncate">Total Reverts</div>
-            <div className="text-lg sm:text-2xl font-bold text-gray-900 truncate">{statData.totalTrend.currentCount}</div>
-            <div className={`text-[12px] mt-1 flex items-center gap-1 ${
-              statData.totalTrend.isPositive === true ? 'text-emerald-500' :
-              statData.totalTrend.isPositive === false ? 'text-rose-500' : 'text-gray-500'
-            }`}>
-              {statData.totalTrend.isPositive === true ? <TrendingUp size={14} /> :
-               statData.totalTrend.isPositive === false ? <TrendingDown size={14} /> : <Minus size={14} />}
-              {statData.totalTrend.trendText}
+            <div className="text-lg sm:text-2xl font-bold text-gray-900 truncate">{statData.totalCount}</div>
+            <div className="text-[12px] mt-1 flex items-center gap-1 text-gray-500">
+              — All time
             </div>
           </div>
           <div className="bg-white p-3 sm:p-5 rounded-xl border border-gray-200 shadow-custom transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-gray-300">
             <div className="text-xs sm:text-sm font-medium text-gray-500 mb-2 truncate">Reverts This Year</div>
-            <div className="text-lg sm:text-2xl font-bold text-gray-900 truncate">{statData.yearTrend.currentCount}</div>
-            <div className={`text-[12px] mt-1 flex items-center gap-1 ${
-              statData.yearTrend.isPositive === true ? 'text-emerald-500' :
-              statData.yearTrend.isPositive === false ? 'text-rose-500' : 'text-gray-500'
-            }`}>
-              {statData.yearTrend.isPositive === true ? <TrendingUp size={14} /> :
-               statData.yearTrend.isPositive === false ? <TrendingDown size={14} /> : <Minus size={14} />}
-              {statData.yearTrend.trendText}
+            <div className="text-lg sm:text-2xl font-bold text-gray-900 truncate">{statData.yearCount}</div>
+            <div className="text-[12px] mt-1 flex items-center gap-1 text-gray-500">
+              — This calendar year
             </div>
           </div>
           <div className="bg-white p-3 sm:p-5 rounded-xl border border-gray-200 shadow-custom transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-gray-300">
             <div className="text-xs sm:text-sm font-medium text-gray-500 mb-2 truncate">Reverts This Month</div>
-            <div className="text-lg sm:text-2xl font-bold text-gray-900 truncate">{statData.monthTrend.currentCount}</div>
-            <div className={`text-[12px] mt-1 flex items-center gap-1 ${
-              statData.monthTrend.isPositive === true ? 'text-emerald-500' :
-              statData.monthTrend.isPositive === false ? 'text-rose-500' : 'text-gray-500'
-            }`}>
-              {statData.monthTrend.isPositive === true ? <TrendingUp size={14} /> :
-               statData.monthTrend.isPositive === false ? <TrendingDown size={14} /> : <Minus size={14} />}
-              {statData.monthTrend.trendText}
+            <div className="text-lg sm:text-2xl font-bold text-gray-900 truncate">{statData.monthCount}</div>
+            <div className="text-[12px] mt-1 flex items-center gap-1 text-emerald-600">
+              <TrendingUp size={14} />
+              Current month
             </div>
           </div>
           <div className="bg-white p-3 sm:p-5 rounded-xl border border-gray-200 shadow-custom flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-gray-300">
@@ -501,9 +490,15 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
                         className="w-full sm:w-48 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm outline-hidden focus:border-orange-500 focus:ring-1 focus:ring-orange-500 text-gray-900"
                       >
                         <option value="">All Religions</option>
-                        {Array.from(new Set(reverts.map(r => r.previousReligion))).filter(Boolean).map(rel => (
-                          <option key={rel} value={rel}>{rel}</option>
-                        ))}
+                        {statData.religionsList && statData.religionsList.length > 0 ? (
+                          statData.religionsList.map((rel: string) => (
+                            <option key={rel} value={rel}>{rel}</option>
+                          ))
+                        ) : (
+                          Array.from(new Set(paginatedReverts.map(r => r.previousReligion))).filter(Boolean).map(rel => (
+                            <option key={rel} value={rel}>{rel}</option>
+                          ))
+                        )}
                       </select>
                    </div>
                    <div className="flex-1 flex justify-end">
@@ -534,7 +529,16 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredReverts.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={100} className="px-5 py-16 text-center">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                        <span className="text-xs text-gray-500 font-medium">Loading reverts...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedReverts.length === 0 ? (
                   <tr>
                     <td colSpan={100} className="p-0">
                       <EmptyState 
@@ -544,7 +548,7 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
                       />
                     </td>
                   </tr>
-                ) : filteredReverts.map((person) => {
+                ) : paginatedReverts.map((person) => {
                   const age = person.birthdate ? differenceInYears(new Date(), new Date(person.birthdate)) : '-';
                   return (
                     <tr key={person.id} className="transition-colors duration-200 ease-in-out hover:bg-gray-50">
@@ -597,6 +601,21 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            currentPage={currentPage}
+            lastPage={paginationMeta.lastPage}
+            perPage={perPage}
+            total={paginationMeta.total}
+            from={paginationMeta.from}
+            to={paginationMeta.to}
+            isLoading={isLoading}
+            onPageChange={(p) => setCurrentPage(p)}
+            onPerPageChange={(pp) => {
+              setPerPage(pp);
+              setCurrentPage(1);
+            }}
+          />
         </div>
       </motion.div>
       )}

@@ -16,6 +16,7 @@ import DonationPrintTemplate from '../components/DonationPrintTemplate';
 import { createPortal } from 'react-dom';
 import { api } from '../services/api';
 import { formatDisplayDate } from '../utils/dateUtils';
+import Pagination from '../components/Pagination';
 
 const mockCampaigns = [
   { id: '1', title: 'Zakat Fund', description: 'Annual Zakat collection for distribution to the needy in the community.', goalAmount: 100000, category: 'Zakat' },
@@ -50,6 +51,71 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
+  const [paginatedDonations, setPaginatedDonations] = useState<any[]>([]);
+  const [paginationMeta, setPaginationMeta] = useState({
+    total: 0,
+    lastPage: 1,
+    from: 0,
+    to: 0,
+  });
+  const [isLoadingDonations, setIsLoadingDonations] = useState(false);
+
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const fetchDonations = async () => {
+    setIsLoadingDonations(true);
+    try {
+      const params: any = {
+        page: currentPage,
+        per_page: perPage,
+        sort: 'id',
+        direction: 'desc',
+      };
+      if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+      if (filterCategory !== 'All') params.category = filterCategory;
+      if (dateRange?.startDate) params.startDate = format(dateRange.startDate, 'yyyy-MM-dd');
+      if (dateRange?.endDate) params.endDate = format(dateRange.endDate, 'yyyy-MM-dd');
+
+      const res = await api.donations.getAll(params);
+      if (res && res.data) {
+        setPaginatedDonations(res.data);
+        setPaginationMeta({
+          total: res.total ?? res.data.length,
+          lastPage: res.last_page ?? 1,
+          from: res.from ?? 1,
+          to: res.to ?? res.data.length,
+        });
+        if (setDonations) setDonations(res.data);
+      } else if (Array.isArray(res)) {
+        setPaginatedDonations(res);
+        setPaginationMeta({
+          total: res.length,
+          lastPage: 1,
+          from: res.length > 0 ? 1 : 0,
+          to: res.length,
+        });
+        if (setDonations) setDonations(res);
+      }
+    } catch (err) {
+      console.error('Failed to load donations:', err);
+    } finally {
+      setIsLoadingDonations(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDonations();
+  }, [currentPage, perPage, debouncedSearch, filterCategory, dateRange]);
 
   const [editingCampaign, setEditingCampaign] = useState<any>(null);
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
@@ -631,7 +697,16 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-gray-700">
-                      {filteredDonations.length === 0 ? (
+                      {isLoadingDonations ? (
+                        <tr>
+                          <td colSpan={100} className="px-6 py-12 text-center">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                              <span className="text-xs text-gray-500 font-medium">Loading donation records...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (paginatedDonations.length > 0 ? paginatedDonations : filteredDonations).length === 0 ? (
                         <tr>
                           <td colSpan={100} className="p-0">
                             <EmptyState 
@@ -642,7 +717,7 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
                           </td>
                         </tr>
                       ) : (
-                        filteredDonations.map(donation => {
+                        (paginatedDonations.length > 0 ? paginatedDonations : filteredDonations).map(donation => {
                           const campaign = campaigns.find(c => c.id === donation.campaignId);
                           return (
                           <tr key={donation.id} className="transition-colors duration-200 ease-in-out hover:bg-gray-50">
@@ -676,6 +751,21 @@ export default function Donations({ view, dateRange, campaigns, setCampaigns, do
                     </tbody>
                   </table>
                 </div>
+
+                <Pagination
+                  currentPage={currentPage}
+                  lastPage={paginationMeta.lastPage}
+                  perPage={perPage}
+                  total={paginationMeta.total}
+                  from={paginationMeta.from}
+                  to={paginationMeta.to}
+                  isLoading={isLoadingDonations}
+                  onPageChange={(p) => setCurrentPage(p)}
+                  onPerPageChange={(pp) => {
+                    setPerPage(pp);
+                    setCurrentPage(1);
+                  }}
+                />
               </div>
             </motion.div>
           )}

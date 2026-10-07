@@ -284,25 +284,39 @@ export default function Dashboard({
     }
   };
 
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.reverts.getStats()
+      .then(res => {
+        if (isMounted && res) {
+          setDashboardStats(res);
+        }
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
   const summaryData = useMemo(() => {
     // 1. Total Reverts (Raw count of all reverts)
-    const totalRevertsCount = reverts.length;
+    const totalRevertsCount = dashboardStats?.totalReverts ?? reverts.length;
 
     // 2. Shahadahs This Month
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    const shahadahsThisMonth = reverts.filter(r => {
+    const shahadahsThisMonth = dashboardStats?.shahadahsThisMonth ?? reverts.filter(r => {
       if (!r.reversionDate) return false;
       const revDate = new Date(r.reversionDate);
       return revDate.getMonth() === currentMonth && revDate.getFullYear() === currentYear;
     }).length;
 
     // 3. Pending Mentorship
-    const pendingMentorship = reverts.filter(r => r.mentorshipStatus === 'Pending Assignment').length;
+    const pendingMentorship = dashboardStats?.pendingMentorship ?? reverts.filter(r => r.mentorshipStatus === 'Pending Assignment').length;
 
     // 4. Open Tasks
-    const openTasks = tasks.filter(t => t.status === 'todo' || t.status === 'in-progress').length;
+    const openTasks = dashboardStats?.openTasks ?? tasks.filter(t => t.status === 'todo' || t.status === 'in-progress').length;
 
     return [
       { 
@@ -338,9 +352,13 @@ export default function Dashboard({
         bgColor: 'bg-slate-100' 
       },
     ];
-  }, [reverts, tasks]);
+  }, [reverts, tasks, dashboardStats]);
 
   const chartData = useMemo(() => {
+    if (!dateRange.startDate && dashboardStats?.chartData?.length) {
+      return dashboardStats.chartData;
+    }
+
     if (!dateRange.startDate) {
       // All time - show last 6 months
       const months = [];

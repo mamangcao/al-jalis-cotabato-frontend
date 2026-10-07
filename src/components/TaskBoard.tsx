@@ -89,8 +89,9 @@ export default function TaskBoard({ members, tasks, setTasks }: TaskBoardProps) 
   const fetchTasks = useCallback(async (scope: Scope) => {
     setIsLoading(true);
     try {
-      const data = await api.tasks.getAll({ scope });
-      setTasks(data);
+      const res = await api.tasks.getAll({ scope });
+      const taskList = Array.isArray(res) ? res : (res?.data ?? []);
+      setTasks(taskList);
     } catch {
       toast.error('Unable to load tasks.');
     } finally {

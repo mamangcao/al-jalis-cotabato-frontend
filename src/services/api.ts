@@ -4,6 +4,37 @@
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  current_page: number;
+  per_page: number;
+  total: number;
+  last_page: number;
+  from: number | null;
+  to: number | null;
+}
+
+export interface QueryParams {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  sort?: string;
+  direction?: 'asc' | 'desc';
+  [key: string]: any;
+}
+
+export function toQueryString(params?: Record<string, any>): string {
+  if (!params) return '';
+  const searchParams = new URLSearchParams();
+  for (const [key, val] of Object.entries(params)) {
+    if (val !== undefined && val !== null && val !== '') {
+      searchParams.append(key, String(val));
+    }
+  }
+  const qs = searchParams.toString();
+  return qs ? `?${qs}` : '';
+}
+
 class ApiService {
   private baseUrl: string;
 
@@ -89,7 +120,9 @@ class ApiService {
 
   // ================= Reverts =================
   reverts = {
-    getAll: () => this.request<any[]>('/reverts'),
+    getAll: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/reverts${toQueryString(params)}`),
+    getStats: () => this.request<any>('/reverts/stats'),
     get: (id: string | number) => this.request<any>(`/reverts/${id}`),
     create: (data: any) => this.request<any>('/reverts', {
       method: 'POST',
@@ -107,7 +140,8 @@ class ApiService {
 
   // ================= Members =================
   members = {
-    getAll: () => this.request<any[]>('/members'),
+    getAll: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/members${toQueryString(params)}`),
     get: (id: string | number) => this.request<any>(`/members/${id}`),
     create: (data: any) => this.request<any>('/members', {
       method: 'POST',
@@ -124,7 +158,8 @@ class ApiService {
 
   // ================= Events =================
   events = {
-    getAll: () => this.request<any[]>('/events'),
+    getAll: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/events${toQueryString(params)}`),
     get: (id: string | number) => this.request<any>(`/events/${id}`),
     create: (data: any) => this.request<any>('/events', {
       method: 'POST',
@@ -141,7 +176,8 @@ class ApiService {
 
   // ================= Notices =================
   notices = {
-    getAll: () => this.request<any[]>('/notices'),
+    getAll: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/notices${toQueryString(params)}`),
     get: (id: string | number) => this.request<any>(`/notices/${id}`),
     create: (data: { title?: string; content: string; type?: 'staff_note' | 'official_notice' | 'post' | 'notice' | string; department?: string; audience?: string }) =>
       this.request<any>('/notices', {
@@ -160,12 +196,8 @@ class ApiService {
 
   // ================= Tasks =================
   tasks = {
-    getAll: (params?: { scope?: 'my' | 'department' | 'all'; department?: string; status?: string; priority?: string }) => {
-      const qs = params ? '?' + new URLSearchParams(
-        Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== '')) as Record<string, string>
-      ).toString() : '';
-      return this.request<any[]>(`/tasks${qs}`);
-    },
+    getAll: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/tasks${toQueryString(params)}`),
     get: (id: string | number) => this.request<any>(`/tasks/${id}`),
     create: (data: any) => this.request<any>('/tasks', {
       method: 'POST',
@@ -182,7 +214,8 @@ class ApiService {
 
   // ================= Campaigns =================
   campaigns = {
-    getAll: () => this.request<any[]>('/campaigns'),
+    getAll: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/campaigns${toQueryString(params)}`),
     get: (id: string | number) => this.request<any>(`/campaigns/${id}`),
     create: (data: any) => this.request<any>('/campaigns', {
       method: 'POST',
@@ -199,7 +232,8 @@ class ApiService {
 
   // ================= Donations =================
   donations = {
-    getAll: () => this.request<any[]>('/donations'),
+    getAll: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/donations${toQueryString(params)}`),
     get: (id: string | number) => this.request<any>(`/donations/${id}`),
     create: (data: any) => this.request<any>('/donations', {
       method: 'POST',
@@ -216,7 +250,8 @@ class ApiService {
 
   // ================= Leaves =================
   leaves = {
-    getAll: () => this.request<any[]>('/leaves'),
+    getAll: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/leaves${toQueryString(params)}`),
     get: (id: string | number) => this.request<any>(`/leaves/${id}`),
     create: (data: any) => this.request<any>('/leaves', {
       method: 'POST',
@@ -233,10 +268,8 @@ class ApiService {
 
   // ================= Peer Evaluations =================
   evaluations = {
-    getAll: (params?: { targetUserId?: string; cycle?: string }) => {
-      const search = params ? '?' + new URLSearchParams(params as any).toString() : '';
-      return this.request<any[]>(`/evaluations${search}`);
-    },
+    getAll: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/evaluations${toQueryString(params)}`),
     create: (data: any) => this.request<any>('/evaluations', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -258,7 +291,8 @@ class ApiService {
 
   // ================= User Provisioning & Management =================
   users = {
-    getAll: () => this.request<any[]>('/users'),
+    getAll: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/users${toQueryString(params)}`),
     getNextStaffId: () => this.request<{ staff_id: string }>('/users/next-id'),
     create: (data: any) => this.request<any>('/users', {
       method: 'POST',

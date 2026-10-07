@@ -126,16 +126,22 @@ function MainApp() {
         .then(data => { if (isMounted && Array.isArray(data)) setMembers(data); })
         .catch(() => {});
 
-      api.reverts.getAll()
-        .then(data => { if (isMounted && Array.isArray(data)) setReverts(data); })
+      api.reverts.getAll({ page: 1, per_page: 20 })
+        .then(res => {
+          const list = res?.data ?? (Array.isArray(res) ? res : []);
+          if (isMounted && Array.isArray(list)) setReverts(list);
+        })
         .catch(() => {});
 
       api.campaigns.getAll()
         .then(data => { if (isMounted && Array.isArray(data)) setCampaigns(data); })
         .catch(() => {});
 
-      api.donations.getAll()
-        .then(data => { if (isMounted && Array.isArray(data)) setDonations(data); })
+      api.donations.getAll({ page: 1, per_page: 20 })
+        .then(res => {
+          const list = res?.data ?? (Array.isArray(res) ? res : []);
+          if (isMounted && Array.isArray(list)) setDonations(list);
+        })
         .catch(() => {});
     };
 
