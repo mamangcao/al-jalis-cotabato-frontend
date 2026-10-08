@@ -1,96 +1,125 @@
-import React, { useMemo } from 'react';
-import { initialMembers } from '../data';
+import React, { useState, useEffect } from 'react';
 import { DateRange } from './DateRangePicker';
-import { isAfter, isBefore } from 'date-fns';
-import { Users, UserCheck, GraduationCap } from 'lucide-react';
+import { Users, UserCheck, GraduationCap, Loader2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { api } from '../services/api';
 
-export default function DaeyahAnalytics({ reverts, dateRange, members = [] }: { reverts: any[], dateRange: DateRange, members?: any[] }) {
-  // Filter reverts by date range
-  const filteredReverts = useMemo(() => {
-    if (dateRange?.preset === 'all_time' || (!dateRange?.startDate && !dateRange?.endDate)) {
-      return reverts;
+interface TopFacilitator {
+  id: string | number;
+  name: string;
+  count: number;
+}
+
+interface ConversionSource {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
+interface AnalyticsData {
+  totalShahadahs: number;
+  activeDaeyahsCount: number;
+  mentorshipCoverage: {
+    percentage: number;
+    count: number;
+    total: number;
+  };
+  topFacilitators: TopFacilitator[];
+  conversionSources: ConversionSource[];
+}
+
+export default function DaeyahAnalytics({ 
+  reverts = [], 
+  dateRange, 
+  members = [] 
+}: { 
+  reverts?: any[]; 
+  dateRange: DateRange; 
+  members?: any[]; 
+}) {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+    setIsLoading(true);
+
+    const params: Record<string, string> = {
+      preset: dateRange?.preset || 'all_time',
+    };
+    if (dateRange?.startDate) {
+      const s = format(dateRange.startDate, 'yyyy-MM-dd');
+      params.startDate = s;
+      params.start_date = s;
     }
-    return reverts.filter(r => {
-      if (!r.reversionDate) return false;
-      const itemDate = new Date(r.reversionDate);
-      if (dateRange?.startDate && isBefore(itemDate, dateRange.startDate)) return false;
-      if (dateRange?.preset !== 'all_time' && dateRange?.endDate && isAfter(itemDate, dateRange.endDate)) return false;
-      return true;
-    });
-  }, [reverts, dateRange]);
+    if (dateRange?.endDate && dateRange?.preset !== 'all_time') {
+      const e = format(dateRange.endDate, 'yyyy-MM-dd');
+      params.endDate = e;
+      params.end_date = e;
+    }
 
-  // Card metrics
-  const totalShahadahs = filteredReverts.length;
-  
-  const activeDaeyahsCount = useMemo(() => {
-    const uniqueDaeyahs = new Set(filteredReverts.filter(r => r.facilitatorId).map(r => r.facilitatorId));
-    return uniqueDaeyahs.size;
-  }, [filteredReverts]);
-
-  const mentorshipCoverage = useMemo(() => {
-    if (totalShahadahs === 0) return { percentage: 0, count: 0 };
-    const covered = filteredReverts.filter(r => 
-      r.mentorshipStatus === 'Mentor Assigned' || r.mentorshipStatus === 'Completed Foundation Course'
-    ).length;
-    return {
-      percentage: Math.round((covered / totalShahadahs) * 100),
-      count: covered
-    };
-  }, [filteredReverts, totalShahadahs]);
-
-  // Top Facilitators
-  const topFacilitators = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredReverts.forEach(r => {
-      if (r.facilitatorId) {
-        counts[r.facilitatorId] = (counts[r.facilitatorId] || 0) + 1;
-      }
-    });
-    
-    const allM = (members && members.length > 0) ? members : initialMembers;
-    return Object.entries(counts)
-      .map(([id, count]) => {
-        const member = allM.find(m => String(m.id) === String(id));
-        return {
-          id,
-          name: member ? member.name : 'Unknown',
-          count
-        };
+    api.reverts.getDaeyahAnalytics(params, { signal: controller.signal })
+      .then(res => {
+        if (isMounted && res) {
+          setData({
+            totalShahadahs: res.totalShahadahs ?? res.total_shahadahs ?? 0,
+            activeDaeyahsCount: res.activeDaeyahsCount ?? res.active_daeyahs_count ?? 0,
+            mentorshipCoverage: {
+              percentage: res.mentorshipCoverage?.percentage ?? res.mentorship_coverage?.percentage ?? 0,
+              count: res.mentorshipCoverage?.count ?? res.mentorship_coverage?.count ?? 0,
+              total: res.mentorshipCoverage?.total ?? res.mentorship_coverage?.total ?? 0,
+            },
+            topFacilitators: (res.topFacilitators ?? res.top_facilitators ?? []).map((fac: any) => ({
+              id: fac.id ?? fac.facilitator_id ?? fac.name,
+              name: fac.name ?? fac.facilitator_name ?? 'Unknown',
+              count: fac.count ?? 0,
+            })),
+            conversionSources: res.conversionSources ?? res.conversion_sources ?? [],
+          });
+        }
       })
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-  }, [filteredReverts, members]);
+      .catch(err => {
+        if (err?.name !== 'AbortError') {
+          console.error('Failed to fetch Daeyah Analytics:', err);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
 
-  // Conversion Sources
-  const conversionSources = useMemo(() => {
-    const counts: Record<string, number> = {
-      "Walk-in": 0,
-      "Street Da'wah": 0,
-      "Social Media": 0,
-      "Friend/Family": 0,
-      "Other": 0
+    return () => {
+      isMounted = false;
+      controller.abort();
     };
-    
-    filteredReverts.forEach(r => {
-      const source = r.source || 'Other';
-      if (counts[source] !== undefined) {
-        counts[source]++;
-      } else {
-        counts['Other']++;
-      }
-    });
+  }, [dateRange]);
 
-    return Object.entries(counts)
-      .map(([name, count]) => ({
-        name,
-        count,
-        percentage: totalShahadahs > 0 ? (count / totalShahadahs) * 100 : 0
-      }))
-      .sort((a, b) => b.count - a.count);
-  }, [filteredReverts, totalShahadahs]);
+  const totalShahadahs = data?.totalShahadahs ?? 0;
+  const activeDaeyahsCount = data?.activeDaeyahsCount ?? 0;
+  const mentorshipCoverage = data?.mentorshipCoverage ?? { percentage: 0, count: 0, total: 0 };
+  const topFacilitators = data?.topFacilitators ?? [];
+  const conversionSources = data?.conversionSources ?? [];
+
+  if (isLoading && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center p-16 space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+        <p className="text-sm text-gray-500 font-medium">Loading Da'eyah Analytics...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {isLoading && data && (
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-2 bg-white/80 backdrop-blur-xs px-2.5 py-1 rounded-full border border-gray-200 shadow-xs text-xs text-gray-500">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500" />
+          <span>Updating...</span>
+        </div>
+      )}
+
       {/* Top Stat Cards (3-Column Grid) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col hover:shadow-md transition-shadow">
@@ -121,7 +150,7 @@ export default function DaeyahAnalytics({ reverts, dateRange, members = [] }: { 
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Mentorship Coverage</h3>
           </div>
           <div className="text-3xl font-bold text-gray-900 mt-auto">{mentorshipCoverage.percentage}%</div>
-          <div className="text-xs text-gray-500 mt-1">{mentorshipCoverage.count} out of {totalShahadahs}</div>
+          <div className="text-xs text-gray-500 mt-1">{mentorshipCoverage.count} out of {mentorshipCoverage.total || totalShahadahs}</div>
         </div>
       </div>
 

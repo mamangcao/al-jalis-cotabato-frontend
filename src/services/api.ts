@@ -134,6 +134,8 @@ class ApiService {
       this.request<any>(`/reverts${toQueryString(params)}`),
     getStats: (params?: QueryParams, options?: RequestInit) => 
       this.request<any>(`/reverts/stats${toQueryString(params)}`, options),
+    getDaeyahAnalytics: (params?: QueryParams, options?: RequestInit) => 
+      this.request<any>(`/reverts/daeyah-analytics${toQueryString(params)}`, options),
     get: (id: string | number) => this.request<any>(`/reverts/${id}`),
     create: (data: any) => this.request<any>('/reverts', {
       method: 'POST',
