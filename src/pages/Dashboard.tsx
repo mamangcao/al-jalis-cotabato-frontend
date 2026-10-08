@@ -469,6 +469,14 @@ export default function Dashboard({
   // ── Chart Subtitle ────────────────────────────────────────────────────────
   const chartSubtitle = useMemo(() => {
     if (dateRange?.preset === 'all_time' || (!dateRange?.startDate && !dateRange?.endDate)) {
+      if (dashboardStats?.meta?.chartStartDate) {
+        try {
+          const chartStartFormatted = format(new Date(dashboardStats.meta.chartStartDate + 'T00:00:00'), 'MMMM yyyy');
+          return `Showing monthly activity from ${chartStartFormatted} to present (historical total includes all records)`;
+        } catch {
+          // fallback to default if parsing fails
+        }
+      }
       return 'Showing monthly activity from January 2016 to present (historical total includes all records)';
     }
     if (dateRange?.preset === 'ytd') {
@@ -490,7 +498,7 @@ export default function Dashboard({
       return `Showing activity from ${formatDisplayDate(dateRange.startDate)} to ${formatDisplayDate(dateRange.endDate)}`;
     }
     return 'Showing activity for selected period';
-  }, [dateRange]);
+  }, [dateRange, dashboardStats?.meta?.chartStartDate]);
 
   const chartData = useMemo(() => {
     return dashboardStats?.chartData || [];
