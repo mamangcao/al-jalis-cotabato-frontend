@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, X, AlertTriangle, ShieldCheck, RefreshCw } from 'lucide-react';
+import { UserPlus, X, AlertTriangle, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '../services/api';
 
@@ -34,28 +34,16 @@ const ROLES = [
 export default function ProvisionUserModal({ isOpen, onClose, onSuccess }: ProvisionUserModalProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [provisionMode, setProvisionMode] = useState<'link' | 'manual'>('link');
   const [staffId, setStaffId] = useState('');
   const [department, setDepartment] = useState('Admin');
   const [jobTitle, setJobTitle] = useState('');
   const [role, setRole] = useState('staff');
   const [accountType, setAccountType] = useState<'standard' | 'evaluation_only'>('standard');
   const [isLoading, setIsLoading] = useState(false);
-  const [isFetchingId, setIsFetchingId] = useState(false);
   const [error, setError] = useState('');
-
-  const fetchNextId = async () => {
-    setIsFetchingId(true);
-    try {
-      const res = await api.users.getNextStaffId();
-      if (res?.staff_id) {
-        setStaffId(res.staff_id);
-      }
-    } catch {
-      // Fallback
-    } finally {
-      setIsFetchingId(false);
-    }
-  };
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [selectedStaffProfileId, setSelectedStaffProfileId] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
@@ -66,9 +54,34 @@ export default function ProvisionUserModal({ isOpen, onClose, onSuccess }: Provi
       setRole('staff');
       setDepartment('Admin');
       setAccountType('standard');
-      fetchNextId();
+      setProvisionMode('link');
+      setStaffId('');
+      setSelectedStaffProfileId('');
+      
+      api.personnel.getStaff().then((res: any) => {
+        const data = res?.data ?? (Array.isArray(res) ? res : []);
+        setStaffList(data);
+      }).catch(() => {
+        toast.error('Failed to load staff list');
+      });
     }
   }, [isOpen]);
+
+  const handleStaffSelect = (profileId: string) => {
+    setSelectedStaffProfileId(profileId);
+    const staff = staffList.find(s => s.id.toString() === profileId);
+    if (staff) {
+      setName(staff.name);
+      setDepartment(staff.department);
+      setStaffId(staff.staff_id);
+      setJobTitle(staff.job_title || '');
+    } else {
+      setName('');
+      setDepartment('Admin');
+      setStaffId('');
+      setJobTitle('');
+    }
+  };
 
   // Sync account type if evaluation_only role selected
   const handleRoleChange = (selectedRole: string) => {
@@ -82,8 +95,12 @@ export default function ProvisionUserModal({ isOpen, onClose, onSuccess }: Provi
     e.preventDefault();
     setError('');
 
-    if (!staffId.match(/^TGC2016-\d{3}$/)) {
-      setError('Staff ID must adhere to the organization format TGC2016-XXX (e.g., TGC2016-025).');
+    if (provisionMode === 'manual' && !staffId) {
+      setError('Staff ID is required.');
+      return;
+    }
+    if (provisionMode === 'link' && !selectedStaffProfileId) {
+      setError('Please select a staff member.');
       return;
     }
 
@@ -93,7 +110,8 @@ export default function ProvisionUserModal({ isOpen, onClose, onSuccess }: Provi
       await api.users.create({
         name: name.trim(),
         email: email.trim(),
-        staff_id: staffId.trim(),
+        staff_id: staffId.trim() || undefined,
+        staff_profile_id: provisionMode === 'link' ? parseInt(selectedStaffProfileId) : undefined,
         department,
         job_title: jobTitle.trim() || undefined,
         role,
@@ -147,6 +165,48 @@ export default function ProvisionUserModal({ isOpen, onClose, onSuccess }: Provi
         </div>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
+            <button
+              type="button"
+              onClick={() => setProvisionMode('link')}
+              className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                provisionMode === 'link' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Link Existing Staff
+            </button>
+            <button
+              type="button"
+              onClick={() => setProvisionMode('manual')}
+              className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                provisionMode === 'manual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Non-Staff Account
+            </button>
+          </div>
+
+          {provisionMode === 'link' && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+                Select Staff Member *
+              </label>
+              <select
+                required
+                value={selectedStaffProfileId}
+                onChange={(e) => handleStaffSelect(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none"
+              >
+                <option value="">-- Select Staff --</option>
+                {staffList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.staff_id} - {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
               Full Name *
@@ -156,8 +216,9 @@ export default function ProvisionUserModal({ isOpen, onClose, onSuccess }: Provi
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={provisionMode === 'link'}
               placeholder="e.g. Zayd Al-Ansari"
-              className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none"
+              className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none disabled:opacity-60"
             />
           </div>
 
@@ -176,27 +237,17 @@ export default function ProvisionUserModal({ isOpen, onClose, onSuccess }: Provi
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Staff ID *
-              </label>
-              <button
-                type="button"
-                onClick={fetchNextId}
-                disabled={isFetchingId}
-                className="text-xs text-orange-600 hover:text-orange-700 flex items-center gap-1 cursor-pointer"
-              >
-                <RefreshCw size={12} className={isFetchingId ? 'animate-spin' : ''} />
-                Generate Next ID
-              </button>
-            </div>
+            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+              {provisionMode === 'link' ? 'Staff ID' : 'Account ID / Staff ID *'}
+            </label>
             <input
               type="text"
-              required
+              required={provisionMode === 'manual'}
               value={staffId}
               onChange={(e) => setStaffId(e.target.value.toUpperCase())}
-              placeholder="TGC2016-000"
-              className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none font-mono"
+              disabled={provisionMode === 'link'}
+              placeholder="e.g. ADMIN-001"
+              className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none font-mono disabled:opacity-60"
             />
           </div>
 
@@ -208,7 +259,8 @@ export default function ProvisionUserModal({ isOpen, onClose, onSuccess }: Provi
               <select
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none"
+                disabled={provisionMode === 'link'}
+                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none disabled:opacity-60"
               >
                 {DEPARTMENTS.map((dept) => (
                   <option key={dept} value={dept}>{dept}</option>
@@ -224,8 +276,9 @@ export default function ProvisionUserModal({ isOpen, onClose, onSuccess }: Provi
                 type="text"
                 value={jobTitle}
                 onChange={(e) => setJobTitle(e.target.value)}
+                disabled={provisionMode === 'link'}
                 placeholder="e.g. Director's Secretary"
-                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none"
+                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-100 outline-none disabled:opacity-60"
               />
             </div>
           </div>

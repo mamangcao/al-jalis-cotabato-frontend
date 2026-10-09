@@ -909,24 +909,7 @@ export default function Operations({
                     <label className="block text-[13px] font-medium text-gray-700">
                       Staff ID <span className="text-gray-400 font-normal">(e.g. TGC2016-027)</span>
                     </label>
-                    {!editingMember && !isReadOnly && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            const res = await api.personnel.getNextStaffId();
-                            if (res?.staff_id) {
-                              setFormData(prev => ({ ...prev, staff_id: res.staff_id }));
-                            }
-                          } catch (err) {
-                            console.warn('Failed to fetch next staff ID', err);
-                          }
-                        }}
-                        className="text-xs text-orange-600 hover:text-orange-700 hover:underline font-medium cursor-pointer"
-                      >
-                        Auto-generate
-                      </button>
-                    )}
+
                   </div>
                   <input 
                     type="text" 
