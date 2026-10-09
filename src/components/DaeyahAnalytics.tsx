@@ -71,7 +71,7 @@ export default function DaeyahAnalytics({
               total: res.mentorshipCoverage?.total ?? res.mentorship_coverage?.total ?? 0,
             },
             topFacilitators: (res.topFacilitators ?? res.top_facilitators ?? []).map((fac: any) => ({
-              id: fac.id ?? fac.facilitator_id ?? fac.name,
+              id: fac.id ?? fac.facilitatorId ?? fac.facilitator_id ?? fac.name,
               name: fac.name ?? fac.facilitator_name ?? 'Unknown',
               count: fac.count ?? 0,
             })),

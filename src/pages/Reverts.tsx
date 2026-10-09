@@ -324,7 +324,7 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
   
   const handleEdit = (revert: any) => {
     setEditingId(revert.id);
-    const resolvedFacilitatorId = revert.facilitator_id ? String(revert.facilitator_id) : (revert.facilitatorId ? String(revert.facilitatorId) : '');
+    const resolvedFacilitatorId = revert.facilitatorId ? String(revert.facilitatorId) : (revert.facilitator_id ? String(revert.facilitator_id) : '');
     setFormData({
       ...defaultFormData,
       ...revert,
