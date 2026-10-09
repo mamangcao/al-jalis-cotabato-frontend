@@ -162,6 +162,7 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
   const [activeTab, setActiveTab] = useState("directory");
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingRevert, setEditingRevert] = useState<any>(null);
   const [printRevert, setPrintRevert] = useState<any>(null);
   const [revertToDelete, setRevertToDelete] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -307,6 +308,7 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
 
   const handleOpenModal = async () => {
     setEditingId(null);
+    setEditingRevert(null);
     let nextSerial = '';
     try {
       const res = await api.reverts.getNextSerial();
@@ -324,6 +326,7 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
   
   const handleEdit = (revert: any) => {
     setEditingId(revert.id);
+    setEditingRevert(revert);
     const resolvedFacilitatorId = revert.facilitatorId ? String(revert.facilitatorId) : (revert.facilitator_id ? String(revert.facilitator_id) : '');
     setFormData({
       ...defaultFormData,
@@ -335,17 +338,25 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
     setIsModalOpen(true);
   };
   
-  const handleCloseModal = () => setIsModalOpen(false);
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingId(null);
+    setEditingRevert(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const payload = {
+        ...formData,
+        facilitatorId: formData.facilitatorId ? formData.facilitatorId : null,
+      };
       if (editingId) {
-        await api.reverts.update(editingId, formData);
+        await api.reverts.update(editingId, payload);
         toast.success("Revert updated successfully.");
       } else {
-        await api.reverts.create(formData);
+        await api.reverts.create(payload);
         toast.success("Revert created successfully.");
       }
       handleCloseModal();
@@ -847,7 +858,7 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
                         <div>
                           <label className="block text-[13px] font-medium text-gray-600 mb-1">Facilitator</label>
                           <select 
-                            value={formData.facilitatorId} 
+                            value={formData.facilitatorId || ''} 
                             onChange={e => {
                               setFormData({
                                 ...formData, 
@@ -856,15 +867,15 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
                             }} 
                             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white transition-all outline-hidden text-gray-900 cursor-pointer"
                           >
-                            <option value="">Select Facilitator</option>
+                            <option value="">Unassigned (No Facilitator)</option>
                             {facilitators.map(fac => (
-                              <option key={fac.id} value={fac.id}>
+                              <option key={fac.id} value={String(fac.id)}>
                                 {fac.name} {fac.department ? `(${fac.department})` : ''}
                               </option>
                             ))}
                             {formData.facilitatorId && !facilitators.some(f => String(f.id) === String(formData.facilitatorId)) && (
                               <option value={formData.facilitatorId}>
-                                {`Facilitator #${formData.facilitatorId}`}
+                                {editingRevert?.facilitator?.person?.name || `Staff #${formData.facilitatorId}`}
                               </option>
                             )}
                           </select>
