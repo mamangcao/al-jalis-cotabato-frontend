@@ -179,13 +179,15 @@ export default function Operations({
   
   const [formData, setFormData] = useState({
     name: '',
+    staff_id: '',
     role: '',
     type: 'Staff',
     department: availableDepts[0] || DEPARTMENTS[0] || 'Admin',
     phone: '',
     email: '',
     joinDate: new Date().toISOString().split('T')[0],
-    profilePic: null as string | null
+    profilePic: null as string | null,
+    is_facilitator: false,
   });
 
   const handleAddClick = () => {
@@ -197,13 +199,15 @@ export default function Operations({
 
     setFormData({ 
       name: '', 
+      staff_id: '',
       role: '', 
       type: defaultType, 
       department: availableDepts[0] || DEPARTMENTS[0] || 'Admin', 
       phone: '', 
       email: '', 
       joinDate: new Date().toISOString().split('T')[0], 
-      profilePic: null 
+      profilePic: null,
+      is_facilitator: false,
     });
     setIsModalOpen(true);
   };
@@ -212,13 +216,15 @@ export default function Operations({
     setEditingMember(item);
     setFormData({
       name: item.name || '',
+      staff_id: item.staff_id || '',
       role: item.role || item.position || item.job_title || '',
       type: item.type || (activeTab === 'center_staff' ? 'Staff' : activeTab === 'main_officers' ? 'Officer' : activeTab === 'volunteers' ? 'Volunteer' : 'General Member'),
       department: item.department || availableDepts[0] || DEPARTMENTS[0] || 'Admin',
       phone: item.phone || '',
       email: item.email || '',
       joinDate: item.joinDate || item.joined_date || new Date().toISOString().split('T')[0],
-      profilePic: item.profilePic || item.imageUrl || null
+      profilePic: item.profilePic || item.imageUrl || null,
+      is_facilitator: Boolean(item.is_facilitator),
     });
     setIsModalOpen(true);
   };
@@ -239,17 +245,26 @@ export default function Operations({
     if (memberToDelete) {
       setIsDeletingMember(true);
       try {
-        try {
-          await api.members.delete(memberToDelete);
-        } catch (err) {
-          console.warn('Backend delete member failed, removing locally:', err);
+        if (activeTab === 'center_staff') {
+          try {
+            await api.personnel.deleteStaff(memberToDelete);
+          } catch (err) {
+            console.warn('Backend delete staff failed:', err);
+          }
+          setStaffList(prev => prev.filter(s => String(s.id) !== String(memberToDelete)));
+        } else {
+          try {
+            await api.members.delete(memberToDelete);
+          } catch (err) {
+            console.warn('Backend delete member failed, removing locally:', err);
+          }
+          setMembers(prev => prev.filter(m => String(m.id) !== String(memberToDelete)));
         }
-        setMembers(prev => prev.filter(m => String(m.id) !== String(memberToDelete)));
         setMemberToDelete(null);
-        toast.success("Member removed successfully.");
+        toast.success("Record removed successfully.");
         await fetchDirectoryData();
       } catch (error: any) {
-        toast.error(error?.message || "Failed to delete member.");
+        toast.error(error?.message || "Failed to delete record.");
       } finally {
         setIsDeletingMember(false);
       }
@@ -264,24 +279,36 @@ export default function Operations({
     }
     setIsSubmittingMember(true);
     try {
-      if (editingMember) {
-        try {
-          const updated = await api.members.update(editingMember.id, formData);
-          setMembers(prev => prev.map(m => String(m.id) === String(editingMember.id) ? { ...m, ...updated } : m));
-        } catch (err) {
-          console.warn('Backend update member failed, updating locally:', err);
-          setMembers(prev => prev.map(m => String(m.id) === String(editingMember.id) ? { ...formData, id: m.id } : m));
+      if (formData.type === 'Staff') {
+        if (editingMember) {
+          const updated = await api.personnel.updateStaff(editingMember.id, formData);
+          setStaffList(prev => prev.map(s => String(s.id) === String(editingMember.id) ? { ...s, ...updated } : s));
+          toast.success("Staff record updated successfully.");
+        } else {
+          const created = await api.personnel.createStaff(formData);
+          setStaffList(prev => [...prev, created]);
+          toast.success("Staff member added successfully.");
         }
-        toast.success("Record updated successfully.");
       } else {
-        try {
-          const created = await api.members.create(formData);
-          setMembers(prev => [...prev, created]);
-        } catch (err) {
-          console.warn('Backend create member failed, saving locally:', err);
-          setMembers(prev => [...prev, { ...formData, id: Date.now().toString() }]);
+        if (editingMember) {
+          try {
+            const updated = await api.members.update(editingMember.id, formData);
+            setMembers(prev => prev.map(m => String(m.id) === String(editingMember.id) ? { ...m, ...updated } : m));
+          } catch (err) {
+            console.warn('Backend update member failed, updating locally:', err);
+            setMembers(prev => prev.map(m => String(m.id) === String(editingMember.id) ? { ...formData, id: m.id } : m));
+          }
+          toast.success("Record updated successfully.");
+        } else {
+          try {
+            const created = await api.members.create(formData);
+            setMembers(prev => [...prev, created]);
+          } catch (err) {
+            console.warn('Backend create member failed, saving locally:', err);
+            setMembers(prev => [...prev, { ...formData, id: Date.now().toString() }]);
+          }
+          toast.success("Added successfully.");
         }
-        toast.success("Added successfully.");
       }
       setIsModalOpen(false);
       await fetchDirectoryData();
@@ -878,6 +905,42 @@ export default function Operations({
 
               {formData.type === 'Staff' && (
                 <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[13px] font-medium text-gray-700">
+                      Staff ID <span className="text-gray-400 font-normal">(e.g. TGC2016-027)</span>
+                    </label>
+                    {!editingMember && !isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await api.personnel.getNextStaffId();
+                            if (res?.staff_id) {
+                              setFormData(prev => ({ ...prev, staff_id: res.staff_id }));
+                            }
+                          } catch (err) {
+                            console.warn('Failed to fetch next staff ID', err);
+                          }
+                        }}
+                        className="text-xs text-orange-600 hover:text-orange-700 hover:underline font-medium cursor-pointer"
+                      >
+                        Auto-generate
+                      </button>
+                    )}
+                  </div>
+                  <input 
+                    type="text" 
+                    value={formData.staff_id}
+                    onChange={(e) => setFormData({...formData, staff_id: e.target.value})}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[14px] focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-gray-900 font-mono disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed" 
+                    disabled={isReadOnly}
+                    placeholder="e.g. TGC2016-027"
+                  />
+                </div>
+              )}
+
+              {formData.type === 'Staff' && (
+                <div>
                   <label className="block text-[13px] font-medium text-gray-700 mb-1">Department</label>
                   <select 
                     value={formData.department || availableDepts[0] || 'Admin'}
@@ -904,6 +967,22 @@ export default function Operations({
                   placeholder={formData.type === 'Officer' ? 'e.g. President, Vice President' : formData.type === 'Staff' ? 'e.g. Human Resources Officer' : 'e.g. Community Outreach'}
                 />
               </div>
+
+              {formData.type === 'Staff' && (
+                <div className="flex items-center gap-2 pt-1">
+                  <input 
+                    type="checkbox"
+                    id="is_facilitator"
+                    checked={formData.is_facilitator}
+                    onChange={(e) => setFormData({...formData, is_facilitator: e.target.checked})}
+                    className="rounded text-orange-500 focus:ring-orange-500 h-4 w-4"
+                    disabled={isReadOnly}
+                  />
+                  <label htmlFor="is_facilitator" className="text-[13px] text-gray-700 select-none cursor-pointer">
+                    Eligible Facilitator (can be assigned to Reverts/Shahadas)
+                  </label>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[13px] font-medium text-gray-700 mb-1">Phone Number</label>

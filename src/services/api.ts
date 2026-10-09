@@ -155,6 +155,18 @@ class ApiService {
   personnel = {
     getStaff: <T = any>(params?: QueryParams) => 
       this.request<any>(`/personnel/staff${toQueryString(params)}`),
+    createStaff: (data: any) => this.request<any>('/personnel/staff', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    updateStaff: (id: string | number, data: any) => this.request<any>(`/personnel/staff/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+    deleteStaff: (id: string | number) => this.request<{ message: string }>(`/personnel/staff/${id}`, {
+      method: 'DELETE',
+    }),
+    getNextStaffId: () => this.request<{ staff_id: string }>('/personnel/staff/next-id'),
     getOfficers: <T = any>(params?: QueryParams) => 
       this.request<any>(`/personnel/officers${toQueryString(params)}`),
     getMembers: <T = any>(params?: QueryParams) => 
