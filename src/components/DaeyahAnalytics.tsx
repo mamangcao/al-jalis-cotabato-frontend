@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { DateRange } from './DateRangePicker';
-import { Users, UserCheck, GraduationCap, Loader2 } from 'lucide-react';
+import { Users, UserCheck, GraduationCap, Loader2, Award, HeartHandshake } from 'lucide-react';
 import { format } from 'date-fns';
 import { api } from '../services/api';
+
+interface TopDaeyah {
+  id: string | number;
+  name: string;
+  count: number;
+}
 
 interface TopFacilitator {
   id: string | number;
   name: string;
+  role?: string;
+  status?: string;
   count: number;
 }
 
@@ -24,6 +32,7 @@ interface AnalyticsData {
     count: number;
     total: number;
   };
+  topDaeyahs: TopDaeyah[];
   topFacilitators: TopFacilitator[];
   conversionSources: ConversionSource[];
 }
@@ -70,9 +79,16 @@ export default function DaeyahAnalytics({
               count: res.mentorshipCoverage?.count ?? res.mentorship_coverage?.count ?? 0,
               total: res.mentorshipCoverage?.total ?? res.mentorship_coverage?.total ?? 0,
             },
+            topDaeyahs: (res.topDaeyahs ?? res.top_daeyahs ?? []).map((d: any) => ({
+              id: d.id ?? d.name,
+              name: d.name ?? 'Unknown',
+              count: d.count ?? 0,
+            })),
             topFacilitators: (res.topFacilitators ?? res.top_facilitators ?? []).map((fac: any) => ({
               id: fac.id ?? fac.facilitatorId ?? fac.facilitator_id ?? fac.name,
               name: fac.name ?? fac.facilitator_name ?? 'Unknown',
+              role: fac.role,
+              status: fac.status,
               count: fac.count ?? 0,
             })),
             conversionSources: res.conversionSources ?? res.conversion_sources ?? [],
@@ -99,6 +115,7 @@ export default function DaeyahAnalytics({
   const totalShahadahs = data?.totalShahadahs ?? 0;
   const activeDaeyahsCount = data?.activeDaeyahsCount ?? 0;
   const mentorshipCoverage = data?.mentorshipCoverage ?? { percentage: 0, count: 0, total: 0 };
+  const topDaeyahs = data?.topDaeyahs ?? [];
   const topFacilitators = data?.topFacilitators ?? [];
   const conversionSources = data?.conversionSources ?? [];
 
@@ -137,7 +154,7 @@ export default function DaeyahAnalytics({
             <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
               <UserCheck size={20} />
             </div>
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Active Da'eyahs</h3>
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Active Staff Facilitators</h3>
           </div>
           <div className="text-3xl font-bold text-gray-900 mt-auto">{activeDaeyahsCount}</div>
         </div>
@@ -154,27 +171,84 @@ export default function DaeyahAnalytics({
         </div>
       </div>
 
-      {/* Analytics Visualizations (2-Column Grid) */}
+      {/* Role Leaderboards (2-Column Grid: Da'eyahs vs Facilitators) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column: Top Facilitators Leaderboard */}
+        {/* Left Column: Top Da'eyahs (Shahada Preachers) */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-            <h3 className="font-bold text-gray-900">Top Facilitators</h3>
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <Award size={16} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-sm">Top Da'eyahs</h3>
+                <p className="text-xs text-gray-500">Preachers who administered the Shahada</p>
+              </div>
+            </div>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Shahada
+            </span>
           </div>
-          <div className="p-2">
+          <div className="p-3 divide-y divide-gray-100 flex-1">
+            {topDaeyahs.length > 0 ? (
+              topDaeyahs.map((daeyah, idx) => (
+                <div key={daeyah.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
+                      {daeyah.name.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-900 text-sm">{daeyah.name}</div>
+                      <div className="text-xs text-gray-500">Rank #{idx + 1} • Preacher</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-base font-bold text-gray-900">{daeyah.count}</div>
+                    <div className="text-[11px] text-gray-400">Shahadas</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-500 text-sm">No Da'eyah data recorded for this period.</div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Top Facilitators (Mentorship & Follow-up) */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-md bg-orange-100 text-orange-700 flex items-center justify-center">
+                <HeartHandshake size={16} />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-sm">Top Facilitators</h3>
+                <p className="text-xs text-gray-500">Personnel assigned for revert mentorship</p>
+              </div>
+            </div>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+              Mentorship
+            </span>
+          </div>
+          <div className="p-3 divide-y divide-gray-100 flex-1">
             {topFacilitators.length > 0 ? (
               topFacilitators.map((fac, idx) => (
-                <div key={fac.id} className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors">
+                <div key={fac.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-xs shrink-0">
                       {fac.name.substring(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-900">{fac.name}</div>
-                      <div className="text-xs text-gray-500">Rank #{idx + 1}</div>
+                      <div className="font-semibold text-gray-900 text-sm">{fac.name}</div>
+                      <div className="text-xs text-gray-500">
+                        Rank #{idx + 1} {fac.role ? `• ${fac.role}` : ''}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-lg font-bold text-gray-900">{fac.count}</div>
+                  <div className="text-right">
+                    <div className="text-base font-bold text-gray-900">{fac.count}</div>
+                    <div className="text-[11px] text-gray-400">Assigned</div>
+                  </div>
                 </div>
               ))
             ) : (
@@ -182,28 +256,29 @@ export default function DaeyahAnalytics({
             )}
           </div>
         </div>
+      </div>
 
-        {/* Right Column: Conversion Sources Breakdown */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-            <h3 className="font-bold text-gray-900">Conversion Sources</h3>
-          </div>
-          <div className="p-6 space-y-5">
-            {conversionSources.map((source) => (
-              <div key={source.name}>
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="font-medium text-gray-700">{source.name}</span>
-                  <span className="font-bold text-gray-900">{source.count}</span>
-                </div>
-                <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-orange-500 h-full rounded-full transition-all duration-500" 
-                    style={{ width: `${source.percentage}%` }}
-                  />
-                </div>
+      {/* Bottom Section: Conversion Sources Breakdown */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <h3 className="font-bold text-gray-900 text-sm">Conversion Sources</h3>
+          <p className="text-xs text-gray-500">Initial contact method through which reverts entered Islam</p>
+        </div>
+        <div className="p-6 space-y-5">
+          {conversionSources.map((source) => (
+            <div key={source.name}>
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="font-medium text-gray-700">{source.name}</span>
+                <span className="font-bold text-gray-900">{source.count} <span className="text-xs font-normal text-gray-500">({source.percentage}%)</span></span>
               </div>
-            ))}
-          </div>
+              <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+                <div 
+                  className="bg-orange-500 h-full rounded-full transition-all duration-500" 
+                  style={{ width: `${source.percentage}%` }}
+                />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

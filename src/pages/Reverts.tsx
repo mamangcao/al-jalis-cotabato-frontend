@@ -849,12 +849,9 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
                           <select 
                             value={formData.facilitatorId} 
                             onChange={e => {
-                              const selectedId = e.target.value;
-                              const selectedFac = facilitators.find(f => String(f.id) === String(selectedId));
                               setFormData({
                                 ...formData, 
-                                facilitatorId: selectedId,
-                                daeyahName: selectedFac ? selectedFac.name : formData.daeyahName
+                                facilitatorId: e.target.value,
                               });
                             }} 
                             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white transition-all outline-hidden text-gray-900 cursor-pointer"
@@ -867,7 +864,7 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
                             ))}
                             {formData.facilitatorId && !facilitators.some(f => String(f.id) === String(formData.facilitatorId)) && (
                               <option value={formData.facilitatorId}>
-                                {formData.daeyahName ? `${formData.daeyahName} (Historical)` : `Facilitator #${formData.facilitatorId}`}
+                                {`Facilitator #${formData.facilitatorId}`}
                               </option>
                             )}
                           </select>
