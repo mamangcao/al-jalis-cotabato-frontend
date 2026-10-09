@@ -188,6 +188,7 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
   });
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  const [facilitators, setFacilitators] = useState<any[]>([]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -215,6 +216,13 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
 
   useEffect(() => {
     fetchStats();
+    api.personnel.getFacilitators()
+      .then(res => {
+        if (Array.isArray(res)) setFacilitators(res);
+      })
+      .catch(err => {
+        console.warn('Failed to fetch facilitators from personnel API:', err);
+      });
   }, []);
 
   const fetchReverts = async () => {
@@ -316,9 +324,11 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
   
   const handleEdit = (revert: any) => {
     setEditingId(revert.id);
+    const resolvedFacilitatorId = revert.facilitator_id ? String(revert.facilitator_id) : (revert.facilitatorId ? String(revert.facilitatorId) : '');
     setFormData({
       ...defaultFormData,
       ...revert,
+      facilitatorId: resolvedFacilitatorId,
       serialNumber: revert.serialNumber || `AAI-${getChapterCode()}-26-${String(revert.id).padStart(4, '0')}`,
     });
     setIsCertified(true);
@@ -836,11 +846,30 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[13px] font-medium text-gray-600 mb-1">Facilitator</label>
-                          <select value={formData.facilitatorId} onChange={e => setFormData({...formData, facilitatorId: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white transition-all outline-hidden text-gray-900 cursor-pointer">
+                          <select 
+                            value={formData.facilitatorId} 
+                            onChange={e => {
+                              const selectedId = e.target.value;
+                              const selectedFac = facilitators.find(f => String(f.id) === String(selectedId));
+                              setFormData({
+                                ...formData, 
+                                facilitatorId: selectedId,
+                                daeyahName: selectedFac ? selectedFac.name : formData.daeyahName
+                              });
+                            }} 
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white transition-all outline-hidden text-gray-900 cursor-pointer"
+                          >
                             <option value="">Select Facilitator</option>
-                            {(members.length > 0 ? members : initialMembers).map(member => (
-                              <option key={member.id} value={member.id}>{member.name} ({member.type})</option>
+                            {facilitators.map(fac => (
+                              <option key={fac.id} value={fac.id}>
+                                {fac.name} {fac.department ? `(${fac.department})` : ''}
+                              </option>
                             ))}
+                            {formData.facilitatorId && !facilitators.some(f => String(f.id) === String(formData.facilitatorId)) && (
+                              <option value={formData.facilitatorId}>
+                                {formData.daeyahName ? `${formData.daeyahName} (Historical)` : `Facilitator #${formData.facilitatorId}`}
+                              </option>
+                            )}
                           </select>
                         </div>
                         <div>

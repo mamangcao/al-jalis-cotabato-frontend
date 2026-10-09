@@ -151,6 +151,20 @@ class ApiService {
     getNextSerial: () => this.request<{ serialNumber: string }>('/reverts/next-serial'),
   };
 
+  // ================= Personnel =================
+  personnel = {
+    getStaff: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/personnel/staff${toQueryString(params)}`),
+    getOfficers: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/personnel/officers${toQueryString(params)}`),
+    getMembers: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/personnel/members${toQueryString(params)}`),
+    getVolunteers: <T = any>(params?: QueryParams) => 
+      this.request<any>(`/personnel/volunteers${toQueryString(params)}`),
+    getFacilitators: <T = any>() => 
+      this.request<any>('/personnel/facilitators'),
+  };
+
   // ================= Members =================
   members = {
     getAll: <T = any>(params?: QueryParams) => 

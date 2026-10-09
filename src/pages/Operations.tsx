@@ -6,16 +6,14 @@ import toast from 'react-hot-toast';
 import { canManagePersonnel, canProvisionAccounts, canAccessDirectory } from '../lib/permissions';
 import { DEPARTMENTS } from '../utils/constants';
 import { getStoredDepartments } from '../utils/systemSettings';
-import { Briefcase, CheckSquare, Users, Phone, Mail, Plus, Edit2, Trash2, X, Search, Filter, UserPlus, ShieldAlert, Loader2 } from 'lucide-react';
+import { Briefcase, CheckSquare, Users, Phone, Mail, Plus, Edit2, Trash2, X, Search, Filter, UserPlus, ShieldAlert, Loader2, Award, HeartHandshake, UserCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 import TaskBoard from '../components/TaskBoard';
 import EmptyState from '../components/EmptyState';
 import ProvisionUserModal from '../components/ProvisionUserModal';
-import { createPortal } from 'react-dom';
 import { api } from '../services/api';
 import { formatDisplayDate } from '../utils/dateUtils';
-
 
 const getBadgeStyle = (type: string) => {
   switch(type) {
@@ -27,58 +25,89 @@ const getBadgeStyle = (type: string) => {
 };
 
 const getInitials = (name: string) => {
+  if (!name) return '??';
   return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 };
 
-const ProfileCard = ({ person, isOfficer = false, onEdit, onDelete }: { person: any, isOfficer?: boolean, onEdit: (e: React.MouseEvent) => void, onDelete: (e: React.MouseEvent) => void }) => {
-  const { currentUser } = useAuth();
-  return (
-  <div 
-    className={`bg-white rounded-2xl border p-6 flex flex-col items-center text-center transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl group relative ${
-      isOfficer ? 'border-amber-300 hover:border-amber-400 shadow-md' : 'border-gray-200 hover:border-gray-300'
-    }`}
-  >
-    {canManagePersonnel(currentUser?.role) && (
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-      <button onClick={onEdit} className="p-1.5 text-gray-400 hover:text-orange-500 bg-gray-50 hover:bg-orange-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Edit">
-        <Edit2 size={14} />
-      </button>
-      <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-rose-500 bg-gray-50 hover:bg-rose-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Delete">
-        <Trash2 size={14} />
-      </button>
-    </div>
-    )}
+const getAvatarSrc = (person: any) => {
+  const pic = person?.profilePic || person?.imageUrl;
+  if (!pic) return null;
+  if (typeof pic === 'string' && pic.startsWith('src/')) {
+    return '/' + pic;
+  }
+  return pic;
+};
 
-    <div className={`${isOfficer ? 'w-24 h-24' : 'w-20 h-20'} rounded-full bg-gray-100 border-2 border-white shadow-sm flex items-center justify-center text-gray-400 ${isOfficer ? 'text-2xl' : 'text-xl'} font-bold mb-4 overflow-hidden relative group-hover:scale-105 transition-transform duration-300`}>
-       {person.profilePic ? (
-         <img src={person.profilePic} alt={person.name} className="w-full h-full object-cover" />
-       ) : (
-         getInitials(person.name)
-       )}
+const OfficerCard = ({ officer, onEdit, onDelete }: { officer: any, onEdit: (e: React.MouseEvent) => void, onDelete: (e: React.MouseEvent) => void }) => {
+  const { currentUser } = useAuth();
+  const avatar = getAvatarSrc(officer);
+
+  return (
+    <div className="bg-white rounded-2xl border border-amber-200 hover:border-amber-400 p-6 flex flex-col items-center text-center transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl group relative shadow-xs">
+      {canManagePersonnel(currentUser?.role) && (
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+          <button onClick={onEdit} className="p-1.5 text-gray-400 hover:text-orange-500 bg-gray-50 hover:bg-orange-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Edit">
+            <Edit2 size={14} />
+          </button>
+          <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-rose-500 bg-gray-50 hover:bg-rose-50 rounded-md transition-all duration-200 ease-in-out hover:opacity-80 active:scale-[0.97]" title="Delete">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      )}
+
+      <div className="w-24 h-24 rounded-full bg-amber-50 border-2 border-white shadow-sm flex items-center justify-center text-amber-600 text-2xl font-bold mb-4 overflow-hidden relative group-hover:scale-105 transition-transform duration-300">
+        {avatar ? (
+          <img src={avatar} alt={officer.name} className="w-full h-full object-cover" onError={(e)=>{ (e.target as HTMLElement).style.display = 'none'; }} />
+        ) : (
+          getInitials(officer.name)
+        )}
+      </div>
+
+      <h3 className="text-[18px] font-bold text-gray-900 mb-1">{officer.name}</h3>
+      <p className="text-[13px] text-gray-500 font-medium mb-3">{officer.role || officer.position}</p>
+
+      <div className="flex flex-wrap items-center justify-center gap-1.5 mb-4">
+        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase border bg-amber-50 text-amber-700 border-amber-200">
+          {officer.governance_body || 'Executive Board'}
+        </span>
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+          (officer.status || 'Active').toLowerCase() === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-600 border-gray-200'
+        }`}>
+          {officer.status || 'Active'}
+        </span>
+      </div>
+
+      <div className="w-full flex flex-col gap-2 mt-auto pt-4 border-t border-gray-100">
+        {officer.phone && (
+          <a href={`tel:${officer.phone}`} className="flex items-center justify-center gap-2 text-[13px] text-gray-600 hover:text-orange-500 transition-colors py-1 cursor-pointer">
+            <Phone size={14} />
+            {officer.phone}
+          </a>
+        )}
+        {officer.email && (
+          <a href={`mailto:${officer.email}`} className="flex items-center justify-center gap-2 text-[13px] text-gray-600 hover:text-orange-500 transition-colors py-1 cursor-pointer">
+            <Mail size={14} />
+            <span className="truncate max-w-[180px]">{officer.email}</span>
+          </a>
+        )}
+      </div>
     </div>
-    
-    <h3 className={`${isOfficer ? 'text-[18px]' : 'text-[16px]'} font-bold text-gray-900 mb-1`}>{person.name}</h3>
-    <p className="text-[13px] text-gray-500 font-medium mb-3">{person.role}</p>
-    
-    <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase border mb-5 ${getBadgeStyle(person.type)}`}>
-      {person.type}
-    </span>
-    
-    <div className="w-full flex flex-col gap-2 mt-auto pt-4 border-t border-gray-100">
-      <a href={`tel:${person.phone}`} className="flex items-center justify-center gap-2 text-[13px] text-gray-600 hover:text-orange-500 transition-colors py-1 cursor-pointer">
-        <Phone size={14} />
-        {person.phone}
-      </a>
-      <a href={`mailto:${person.email}`} className="flex items-center justify-center gap-2 text-[13px] text-gray-600 hover:text-orange-500 transition-colors py-1 cursor-pointer">
-        <Mail size={14} />
-        <span className="truncate max-w-[180px]">{person.email}</span>
-      </a>
-    </div>
-  </div>
   );
 };
 
-export default function Operations({ view, members, setMembers, tasks, setTasks }: { view: string, members: any[], setMembers: (v: any) => void, tasks: any[], setTasks: (v: any) => void }) {
+export default function Operations({ 
+  view, 
+  members, 
+  setMembers, 
+  tasks, 
+  setTasks 
+}: { 
+  view: string, 
+  members: any[], 
+  setMembers: (v: any) => void, 
+  tasks: any[], 
+  setTasks: (v: any) => void 
+}) {
   const { currentUser } = useAuth();
 
   const [availableDepts, setAvailableDepts] = useState<string[]>(() => getStoredDepartments());
@@ -88,6 +117,54 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
     window.addEventListener('departments-updated', handleSync);
     return () => window.removeEventListener('departments-updated', handleSync);
   }, []);
+
+  // Categorized personnel state from dedicated endpoints
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [officersList, setOfficersList] = useState<any[]>([]);
+  const [membersList, setMembersList] = useState<any[]>([]);
+  const [volunteersList, setVolunteersList] = useState<any[]>([]);
+  const [includeResignedStaff, setIncludeResignedStaff] = useState(false);
+  const [isLoadingDirectory, setIsLoadingDirectory] = useState(false);
+
+  const fetchDirectoryData = async () => {
+    if (view !== 'directory') return;
+    setIsLoadingDirectory(true);
+    try {
+      const [staffRes, officersRes, membersRes, volunteersRes] = await Promise.allSettled([
+        api.personnel.getStaff({ per_page: 100, include_resigned: includeResignedStaff ? '1' : '0' }),
+        api.personnel.getOfficers({ per_page: 100 }),
+        api.personnel.getMembers({ per_page: 100 }),
+        api.personnel.getVolunteers({ per_page: 100 }),
+      ]);
+
+      if (staffRes.status === 'fulfilled') {
+        const data = staffRes.value?.data ?? (Array.isArray(staffRes.value) ? staffRes.value : []);
+        setStaffList(data);
+      }
+      if (officersRes.status === 'fulfilled') {
+        const data = officersRes.value?.data ?? (Array.isArray(officersRes.value) ? officersRes.value : []);
+        setOfficersList(data);
+      }
+      if (membersRes.status === 'fulfilled') {
+        const data = membersRes.value?.data ?? (Array.isArray(membersRes.value) ? membersRes.value : []);
+        setMembersList(data);
+      }
+      if (volunteersRes.status === 'fulfilled') {
+        const data = volunteersRes.value?.data ?? (Array.isArray(volunteersRes.value) ? volunteersRes.value : []);
+        setVolunteersList(data);
+      }
+    } catch (err) {
+      console.error('Failed to load personnel directory:', err);
+    } finally {
+      setIsLoadingDirectory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (view === 'directory') {
+      fetchDirectoryData();
+    }
+  }, [view, includeResignedStaff]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProvisionModalOpen, setIsProvisionModalOpen] = useState(false);
@@ -99,10 +176,11 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
   const [searchQuery, setSearchQuery] = useState('');
   const [officerSearchQuery, setOfficerSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('All');
+  
   const [formData, setFormData] = useState({
     name: '',
     role: '',
-    type: 'Officer',
+    type: 'Staff',
     department: availableDepts[0] || DEPARTMENTS[0] || 'Admin',
     phone: '',
     email: '',
@@ -112,27 +190,41 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
 
   const handleAddClick = () => {
     setEditingMember(null);
-    setFormData({ name: '', role: '', type: 'Officer', department: availableDepts[0] || DEPARTMENTS[0] || 'Admin', phone: '', email: '', joinDate: new Date().toISOString().split('T')[0], profilePic: null });
+    let defaultType = 'Staff';
+    if (activeTab === 'main_officers') defaultType = 'Officer';
+    else if (activeTab === 'volunteers') defaultType = 'Volunteer';
+    else if (activeTab === 'members') defaultType = 'General Member';
+
+    setFormData({ 
+      name: '', 
+      role: '', 
+      type: defaultType, 
+      department: availableDepts[0] || DEPARTMENTS[0] || 'Admin', 
+      phone: '', 
+      email: '', 
+      joinDate: new Date().toISOString().split('T')[0], 
+      profilePic: null 
+    });
     setIsModalOpen(true);
   };
 
-  const handleEditClick = (member: any) => {
-    setEditingMember(member);
+  const handleEditClick = (item: any) => {
+    setEditingMember(item);
     setFormData({
-      name: member.name,
-      role: member.role,
-      type: member.type,
-      department: member.department || availableDepts[0] || DEPARTMENTS[0] || 'Admin',
-      phone: member.phone,
-      email: member.email,
-      joinDate: member.joinDate || new Date().toISOString().split('T')[0],
-      profilePic: member.profilePic || null
+      name: item.name || '',
+      role: item.role || item.position || item.job_title || '',
+      type: item.type || (activeTab === 'center_staff' ? 'Staff' : activeTab === 'main_officers' ? 'Officer' : activeTab === 'volunteers' ? 'Volunteer' : 'General Member'),
+      department: item.department || availableDepts[0] || DEPARTMENTS[0] || 'Admin',
+      phone: item.phone || '',
+      email: item.email || '',
+      joinDate: item.joinDate || item.joined_date || new Date().toISOString().split('T')[0],
+      profilePic: item.profilePic || item.imageUrl || null
     });
     setIsModalOpen(true);
   };
 
   const handleDelete = (id: string) => {
-    if (!canManagePersonnel(currentUser.role)) {
+    if (!canManagePersonnel(currentUser?.role)) {
       toast.error("Unauthorized: HR or Admin access required.");
       return; 
     }
@@ -140,7 +232,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
   };
 
   const confirmDelete = async () => {
-    if (!canManagePersonnel(currentUser.role)) {
+    if (!canManagePersonnel(currentUser?.role)) {
       toast.error("Unauthorized: HR or Admin access required.");
       return; 
     }
@@ -152,9 +244,10 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
         } catch (err) {
           console.warn('Backend delete member failed, removing locally:', err);
         }
-        setMembers(prev => prev.filter(m => m.id !== memberToDelete));
+        setMembers(prev => prev.filter(m => String(m.id) !== String(memberToDelete)));
         setMemberToDelete(null);
-        toast.success("Member deleted successfully.");
+        toast.success("Member removed successfully.");
+        await fetchDirectoryData();
       } catch (error: any) {
         toast.error(error?.message || "Failed to delete member.");
       } finally {
@@ -165,7 +258,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canManagePersonnel(currentUser.role)) {
+    if (!canManagePersonnel(currentUser?.role)) {
       toast.error("Unauthorized: HR or Admin access required.");
       return; 
     }
@@ -174,12 +267,12 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
       if (editingMember) {
         try {
           const updated = await api.members.update(editingMember.id, formData);
-          setMembers(prev => prev.map(m => m.id === editingMember.id ? { ...m, ...updated } : m));
+          setMembers(prev => prev.map(m => String(m.id) === String(editingMember.id) ? { ...m, ...updated } : m));
         } catch (err) {
           console.warn('Backend update member failed, updating locally:', err);
-          setMembers(prev => prev.map(m => m.id === editingMember.id ? { ...formData, id: m.id } : m));
+          setMembers(prev => prev.map(m => String(m.id) === String(editingMember.id) ? { ...formData, id: m.id } : m));
         }
-        toast.success("Member updated successfully.");
+        toast.success("Record updated successfully.");
       } else {
         try {
           const created = await api.members.create(formData);
@@ -188,26 +281,67 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
           console.warn('Backend create member failed, saving locally:', err);
           setMembers(prev => [...prev, { ...formData, id: Date.now().toString() }]);
         }
-        toast.success("Member added successfully.");
+        toast.success("Added successfully.");
       }
       setIsModalOpen(false);
+      await fetchDirectoryData();
     } catch (error: any) {
-      toast.error(error?.message || "Failed to save member.");
+      toast.error(error?.message || "Failed to save.");
     } finally {
       setIsSubmittingMember(false);
     }
   };
 
-  const officers = members.filter(m => m.type === 'Officer');
-  const staff = members.filter(m => {
-    if (m.type !== 'Staff') return false;
-    if (departmentFilter !== 'All' && m.department !== departmentFilter) return false;
+  // Resolve active dataset with fallback to legacy `members` prop
+  const effectiveStaff = staffList.length > 0 ? staffList : members.filter(m => m.type === 'Staff');
+  const effectiveOfficers = officersList.length > 0 ? officersList : members.filter(m => m.type === 'Officer');
+  const effectiveMembers = membersList.length > 0 ? membersList : members.filter(m => m.type === 'General Member' || m.type === 'Member');
+  const effectiveVolunteers = volunteersList.length > 0 ? volunteersList : members.filter(m => m.type === 'Volunteer');
+
+  const filteredStaff = effectiveStaff.filter(s => {
+    if (departmentFilter !== 'All' && s.department !== departmentFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchName = s.name?.toLowerCase().includes(q);
+      const matchId = s.staff_id?.toLowerCase().includes(q);
+      const matchRole = (s.role || s.job_title)?.toLowerCase().includes(q);
+      if (!matchName && !matchId && !matchRole) return false;
+    }
     return true;
   });
-  const filteredMembers = members.filter(m => m.type === 'General Member' && (m?.name ? m.name.toLowerCase().includes(searchQuery.toLowerCase()) : false));
-  const filteredVolunteers = members.filter(m => m.type === 'Volunteer' && (m?.name ? m.name.toLowerCase().includes(searchQuery.toLowerCase()) : false));
 
-  const isReadOnly = !canManagePersonnel(currentUser.role);
+  const filteredOfficers = effectiveOfficers.filter(o => {
+    if (officerSearchQuery) {
+      const q = officerSearchQuery.toLowerCase();
+      const matchName = o.name?.toLowerCase().includes(q);
+      const matchPos = (o.position || o.role)?.toLowerCase().includes(q);
+      if (!matchName && !matchPos) return false;
+    }
+    return true;
+  });
+
+  const filteredOrgMembers = effectiveMembers.filter(m => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchName = m.name?.toLowerCase().includes(q);
+      const matchNo = m.member_no?.toLowerCase().includes(q);
+      if (!matchName && !matchNo) return false;
+    }
+    return true;
+  });
+
+  const filteredVolunteers = effectiveVolunteers.filter(v => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchName = v.name?.toLowerCase().includes(q);
+      const matchRole = v.role?.toLowerCase().includes(q);
+      const matchSkills = v.skills?.toLowerCase().includes(q);
+      if (!matchName && !matchRole && !matchSkills) return false;
+    }
+    return true;
+  });
+
+  const isReadOnly = !canManagePersonnel(currentUser?.role);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 relative">
@@ -215,8 +349,12 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
       {/* Header */}
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
         <div>
-          <h1 className="text-[24px] font-bold text-gray-900 mb-2 tracking-tight">{view === 'directory' ? 'Personnel Directory' : 'Operations'}</h1>
-          <p className="text-[14px] text-gray-500">Manage directory and tasks.</p>
+          <h1 className="text-[24px] font-bold text-gray-900 mb-2 tracking-tight">
+            {view === 'directory' ? 'Personnel Directory' : 'Operations'}
+          </h1>
+          <p className="text-[14px] text-gray-500">
+            {view === 'directory' ? 'Center Staff, Main Officers, Organization Members, and Volunteers.' : 'Manage directory and tasks.'}
+          </p>
         </div>
         {view === 'directory' && canAccessDirectory(currentUser) && (
           <div className="flex items-center gap-2.5">
@@ -229,7 +367,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                 Provision Account
               </button>
             )}
-            {canManagePersonnel(currentUser.role) && (
+            {canManagePersonnel(currentUser?.role) && (
               <button 
                 onClick={handleAddClick}
                 className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] hover:shadow-md flex items-center justify-center gap-2 cursor-pointer shrink-0"
@@ -275,13 +413,14 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                 activeTab={activeTab} 
                 setActiveTab={setActiveTab} 
                 tabs={[
-                  { id: 'center_staff', label: 'Center Staff' },
-                  { id: 'main_officers', label: 'Main Officers' },
-                  { id: 'members', label: 'Members' },
-                  { id: 'volunteers', label: 'Volunteers' }
+                  { id: 'center_staff', label: `Center Staff (${effectiveStaff.length})` },
+                  { id: 'main_officers', label: `Main Officers (${effectiveOfficers.length})` },
+                  { id: 'members', label: `Members (${effectiveMembers.length})` },
+                  { id: 'volunteers', label: `Volunteers (${effectiveVolunteers.length})` }
                 ]} 
               />
 
+              {/* 1. CENTER STAFF TAB */}
               {activeTab === 'center_staff' && (
                 <div>
                   <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -290,7 +429,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                         <input 
                           type="text" 
-                          placeholder="Search staff..." 
+                          placeholder="Search staff by name, ID, or title..." 
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-gray-900"
@@ -307,8 +446,26 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                         ))}
                       </select>
                     </div>
+
+                    <div className="flex items-center gap-2 text-[13px] text-gray-600 self-end sm:self-auto">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input 
+                          type="checkbox" 
+                          checked={includeResignedStaff} 
+                          onChange={(e) => setIncludeResignedStaff(e.target.checked)}
+                          className="rounded text-orange-500 focus:ring-orange-500"
+                        />
+                        <span>Show Resigned Staff</span>
+                      </label>
+                    </div>
                   </div>
-                  {staff.filter(m => (m?.name ? m.name.toLowerCase().includes(searchQuery.toLowerCase()) : false)).length === 0 ? (
+
+                  {isLoadingDirectory ? (
+                    <div className="bg-white rounded-xl border border-gray-200 py-12 flex items-center justify-center gap-2 text-gray-500 text-sm">
+                      <Loader2 size={18} className="animate-spin text-orange-500" />
+                      Loading Center Staff...
+                    </div>
+                  ) : filteredStaff.length === 0 ? (
                     <div className="bg-white rounded-xl border border-gray-200 py-6">
                       <EmptyState 
                         icon={<Users size={24} />}
@@ -321,59 +478,84 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                       <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead>
                           <tr className="bg-[#F9FAFB] border-b border-gray-200 text-gray-500 font-medium">
-                            <th className="px-5 py-3">Name</th>
-                            <th className="px-5 py-3">Role</th>
+                            <th className="px-5 py-3">Staff Member</th>
+                            <th className="px-5 py-3">Job Title & Assignment</th>
                             <th className="px-5 py-3">Department</th>
-                            <th className="px-5 py-3">Phone</th>
-                            <th className="px-5 py-3">Email</th>
+                            <th className="px-5 py-3">Contact</th>
+                            <th className="px-5 py-3">Status</th>
                             <th className="px-5 py-3 text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-gray-900">
-                          {staff.filter(m => (m?.name ? m.name.toLowerCase().includes(searchQuery.toLowerCase()) : false)).map(person => (
-                            <tr key={person.id} className="hover:bg-gray-50/80 transition-colors">
-                              <td className="px-5 py-3 font-medium">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-[11px] font-bold shrink-0">
-                                    {person.profilePic ? (
-                                      <img src={person.profilePic} alt={person.name} className="w-full h-full object-cover rounded-full" />
-                                    ) : (
-                                      getInitials(person.name)
+                          {filteredStaff.map(person => {
+                            const avatar = getAvatarSrc(person);
+                            const isResigned = (person.employment_status || '').toLowerCase() === 'resigned';
+                            return (
+                              <tr key={person.id} className="hover:bg-gray-50/80 transition-colors">
+                                <td className="px-5 py-3.5 font-medium">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-[11px] font-bold shrink-0 overflow-hidden border border-gray-200">
+                                      {avatar ? (
+                                        <img src={avatar} alt={person.name} className="w-full h-full object-cover" onError={(e)=>{ (e.target as HTMLElement).style.display = 'none'; }} />
+                                      ) : (
+                                        getInitials(person.name)
+                                      )}
+                                    </div>
+                                    <div>
+                                      <div className="text-gray-900 font-semibold">{person.name}</div>
+                                      {person.staff_id && (
+                                        <div className="text-[11px] text-gray-400 font-mono">{person.staff_id}</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-5 py-3.5">
+                                  <div className="flex flex-col items-start gap-1">
+                                    <span className="text-gray-800 font-medium text-[13px]">{person.role || person.job_title}</span>
+                                    {person.is_facilitator && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-50 text-orange-700 border border-orange-200">
+                                        Facilitator
+                                      </span>
                                     )}
                                   </div>
-                                  {person.name}
-                                </div>
-                              </td>
-                              <td className="px-5 py-3">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-[20px] text-[11px] font-semibold ${getBadgeStyle(person.type)}`}>
-                                  {person.role}
-                                </span>
-                              </td>
-                              <td className="px-5 py-3 text-gray-600">{person.department || '-'}</td>
-                              <td className="px-5 py-3 text-gray-500">{person.phone || '-'}</td>
-                              <td className="px-5 py-3 text-gray-500">{person.email || '-'}</td>
-                              <td className="px-5 py-3 text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  {canManagePersonnel(currentUser.role) && (
-                                    <button onClick={(e) => { e.stopPropagation(); handleEditClick(person); }} className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors cursor-pointer hover:opacity-80" title="Edit">
-                                      <Edit2 size={16} />
-                                    </button>
-                                  )}
-                                  {canManagePersonnel(currentUser.role) && (
-                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(person.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:scale-110 transition-transform cursor-pointer" title="Delete">
-                                      <Trash2 size={16} />
-                                    </button>
-                                  )}
-                                  {!canManagePersonnel(currentUser.role) && (
-                                    <button onClick={(e) => { e.stopPropagation(); handleEditClick(person); }} className="p-1.5 text-gray-400 hover:text-blue-500 bg-gray-50 hover:bg-blue-50 rounded-md transition-colors" title="View Profile">
-                                      <Edit2 size={16} className="hidden" />
-                                      <span className="text-xs font-medium px-1">View</span>
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                                <td className="px-5 py-3.5 text-gray-600 font-medium">{person.department || '-'}</td>
+                                <td className="px-5 py-3.5 text-gray-500">
+                                  <div className="flex flex-col text-[12px]">
+                                    {person.phone && <span>{person.phone}</span>}
+                                    {person.email && <span className="text-gray-400">{person.email}</span>}
+                                    {!person.phone && !person.email && <span>-</span>}
+                                  </div>
+                                </td>
+                                <td className="px-5 py-3.5">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                                    isResigned ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  }`}>
+                                    {isResigned ? 'Resigned' : 'Active'}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3.5 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    {canManagePersonnel(currentUser?.role) && (
+                                      <button onClick={(e) => { e.stopPropagation(); handleEditClick(person); }} className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors cursor-pointer hover:opacity-80" title="Edit">
+                                        <Edit2 size={16} />
+                                      </button>
+                                    )}
+                                    {canManagePersonnel(currentUser?.role) && (
+                                      <button onClick={(e) => { e.stopPropagation(); handleDelete(person.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:scale-110 transition-transform cursor-pointer" title="Delete">
+                                        <Trash2 size={16} />
+                                      </button>
+                                    )}
+                                    {!canManagePersonnel(currentUser?.role) && (
+                                      <button onClick={(e) => { e.stopPropagation(); handleEditClick(person); }} className="p-1.5 text-gray-400 hover:text-blue-500 bg-gray-50 hover:bg-blue-50 rounded-md transition-colors" title="View Profile">
+                                        <span className="text-xs font-medium px-1">View</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -381,6 +563,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                 </div>
               )}
 
+              {/* 2. MAIN OFFICERS TAB */}
               {activeTab === 'main_officers' && (
                 <div>
                   <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -389,7 +572,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                         <input 
                           type="text" 
-                          placeholder="Search officers..." 
+                          placeholder="Search officers by name or title..." 
                           value={officerSearchQuery}
                           onChange={(e) => setOfficerSearchQuery(e.target.value)}
                           className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-gray-900"
@@ -398,7 +581,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                     </div>
                   </div>
                   
-                  {officers.filter(m => (m?.name ? m.name.toLowerCase().includes(officerSearchQuery.toLowerCase()) : false)).length === 0 ? (
+                  {filteredOfficers.length === 0 ? (
                     <div className="bg-white rounded-xl border border-gray-200 py-6">
                       <EmptyState 
                         icon={<Briefcase size={24} />}
@@ -408,20 +591,17 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {officers
-                        .filter(m => (m?.name ? m.name.toLowerCase().includes(officerSearchQuery.toLowerCase()) : false))
-                        .map(officer => (
-                        <ProfileCard 
+                      {filteredOfficers.map(officer => (
+                        <OfficerCard 
                           key={officer.id} 
-                          person={officer} 
-                          isOfficer={true}
+                          officer={officer} 
                           onEdit={(e) => {
                             e.stopPropagation();
-                            if(canManagePersonnel(currentUser.role)) handleEditClick(officer);
+                            if (canManagePersonnel(currentUser?.role)) handleEditClick(officer);
                           }}
                           onDelete={(e) => {
                             e.stopPropagation();
-                            if(canManagePersonnel(currentUser.role)) handleDelete(officer.id);
+                            if (canManagePersonnel(currentUser?.role)) handleDelete(officer.id);
                           }}
                         />
                       ))}
@@ -430,6 +610,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                 </div>
               )}
 
+              {/* 3. MEMBERS TAB */}
               {activeTab === 'members' && (
                 <div>
                   <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -438,7 +619,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                         <input 
                           type="text" 
-                          placeholder="Search by name..." 
+                          placeholder="Search members by name or ID..." 
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-gray-900"
@@ -446,7 +627,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                       </div>
                     </div>
                   </div>
-                  {filteredMembers.length === 0 ? (
+                  {filteredOrgMembers.length === 0 ? (
                     <div className="bg-white rounded-xl border border-gray-200 py-6">
                       <EmptyState 
                         icon={<Users size={24} />}
@@ -459,8 +640,10 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                       <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead>
                           <tr className="bg-[#F9FAFB] border-b border-gray-200 text-gray-500 font-medium">
+                            <th className="px-5 py-3">Member ID</th>
                             <th className="px-5 py-3">Name</th>
-                            <th className="px-5 py-3">Role</th>
+                            <th className="px-5 py-3">Membership Type</th>
+                            <th className="px-5 py-3">Status</th>
                             <th className="px-5 py-3">Phone</th>
                             <th className="px-5 py-3">Email</th>
                             <th className="px-5 py-3">Join Date</th>
@@ -468,43 +651,41 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-gray-900">
-                          {filteredMembers.map(person => (
+                          {filteredOrgMembers.map(person => (
                             <tr key={person.id} className="hover:bg-gray-50/80 transition-colors">
-                              <td className="px-5 py-3 font-medium">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-[11px] font-bold shrink-0">
-                                    {person.profilePic ? (
-                                      <img src={person.profilePic} alt={person.name} className="w-full h-full object-cover rounded-full" />
-                                    ) : (
-                                      getInitials(person.name)
-                                    )}
-                                  </div>
-                                  {person.name}
-                                </div>
+                              <td className="px-5 py-3 font-mono text-[12px] text-gray-600 font-semibold">
+                                {person.member_no || `MBR-${person.id}`}
+                              </td>
+                              <td className="px-5 py-3 font-medium text-gray-900">
+                                {person.name}
                               </td>
                               <td className="px-5 py-3">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-[20px] text-[11px] font-semibold ${getBadgeStyle(person.type)}`}>
-                                  {person.type}
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                  {person.membership_type || 'Regular'}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {person.status || 'Active'}
                                 </span>
                               </td>
                               <td className="px-5 py-3 text-gray-500">{person.phone || '-'}</td>
                               <td className="px-5 py-3 text-gray-500">{person.email || '-'}</td>
-                              <td className="px-5 py-3 text-gray-500">{formatDisplayDate(person.joinDate)}</td>
+                              <td className="px-5 py-3 text-gray-500">{formatDisplayDate(person.joinDate || person.joined_date)}</td>
                               <td className="px-5 py-3 text-right">
                                 <div className="flex items-center justify-end gap-2">
-                                  {canManagePersonnel(currentUser.role) && (
+                                  {canManagePersonnel(currentUser?.role) && (
                                     <button onClick={(e) => { e.stopPropagation(); handleEditClick(person); }} className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors cursor-pointer hover:opacity-80" title="Edit">
                                       <Edit2 size={16} />
                                     </button>
                                   )}
-                                  {canManagePersonnel(currentUser.role) && (
+                                  {canManagePersonnel(currentUser?.role) && (
                                     <button onClick={(e) => { e.stopPropagation(); handleDelete(person.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:scale-110 transition-transform cursor-pointer" title="Delete">
                                       <Trash2 size={16} />
                                     </button>
                                   )}
-                                  {!canManagePersonnel(currentUser.role) && (
+                                  {!canManagePersonnel(currentUser?.role) && (
                                     <button onClick={(e) => { e.stopPropagation(); handleEditClick(person); }} className="p-1.5 text-gray-400 hover:text-blue-500 bg-gray-50 hover:bg-blue-50 rounded-md transition-colors" title="View Profile">
-                                      <Edit2 size={16} className="hidden" />
                                       <span className="text-xs font-medium px-1">View</span>
                                     </button>
                                   )}
@@ -519,6 +700,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                 </div>
               )}
 
+              {/* 4. VOLUNTEERS TAB */}
               {activeTab === 'volunteers' && (
                 <div>
                   <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -527,7 +709,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                         <input 
                           type="text" 
-                          placeholder="Search by name..." 
+                          placeholder="Search volunteers by name or skills..." 
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-gray-900"
@@ -549,7 +731,9 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                         <thead>
                           <tr className="bg-[#F9FAFB] border-b border-gray-200 text-gray-500 font-medium">
                             <th className="px-5 py-3">Name</th>
-                            <th className="px-5 py-3">Role</th>
+                            <th className="px-5 py-3">Volunteer Role</th>
+                            <th className="px-5 py-3">Skills / Focus Area</th>
+                            <th className="px-5 py-3">Status</th>
                             <th className="px-5 py-3">Phone</th>
                             <th className="px-5 py-3">Email</th>
                             <th className="px-5 py-3">Join Date</th>
@@ -559,41 +743,37 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                         <tbody className="divide-y divide-gray-100 text-gray-900">
                           {filteredVolunteers.map(person => (
                             <tr key={person.id} className="hover:bg-gray-50/80 transition-colors">
-                              <td className="px-5 py-3 font-medium">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-[11px] font-bold shrink-0">
-                                    {person.profilePic ? (
-                                      <img src={person.profilePic} alt={person.name} className="w-full h-full object-cover rounded-full" />
-                                    ) : (
-                                      getInitials(person.name)
-                                    )}
-                                  </div>
-                                  {person.name}
-                                </div>
+                              <td className="px-5 py-3 font-medium text-gray-900">
+                                {person.name}
                               </td>
                               <td className="px-5 py-3">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-[20px] text-[11px] font-semibold ${getBadgeStyle(person.type)}`}>
-                                  {person.type}
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-[20px] text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {person.role || 'Volunteer'}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3 text-gray-600 text-[13px]">{person.skills || '-'}</td>
+                              <td className="px-5 py-3">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {person.status || 'Active'}
                                 </span>
                               </td>
                               <td className="px-5 py-3 text-gray-500">{person.phone || '-'}</td>
                               <td className="px-5 py-3 text-gray-500">{person.email || '-'}</td>
-                              <td className="px-5 py-3 text-gray-500">{formatDisplayDate(person.joinDate)}</td>
+                              <td className="px-5 py-3 text-gray-500">{formatDisplayDate(person.joinDate || person.joined_date)}</td>
                               <td className="px-5 py-3 text-right">
                                 <div className="flex items-center justify-end gap-2">
-                                  {canManagePersonnel(currentUser.role) && (
+                                  {canManagePersonnel(currentUser?.role) && (
                                     <button onClick={(e) => { e.stopPropagation(); handleEditClick(person); }} className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-md transition-colors cursor-pointer hover:opacity-80" title="Edit">
                                       <Edit2 size={16} />
                                     </button>
                                   )}
-                                  {canManagePersonnel(currentUser.role) && (
+                                  {canManagePersonnel(currentUser?.role) && (
                                     <button onClick={(e) => { e.stopPropagation(); handleDelete(person.id); }} className="p-1.5 text-gray-400 hover:text-red-600 hover:scale-110 transition-transform cursor-pointer" title="Delete">
                                       <Trash2 size={16} />
                                     </button>
                                   )}
-                                  {!canManagePersonnel(currentUser.role) && (
+                                  {!canManagePersonnel(currentUser?.role) && (
                                     <button onClick={(e) => { e.stopPropagation(); handleEditClick(person); }} className="p-1.5 text-gray-400 hover:text-blue-500 bg-gray-50 hover:bg-blue-50 rounded-md transition-colors" title="View Profile">
-                                      <Edit2 size={16} className="hidden" />
                                       <span className="text-xs font-medium px-1">View</span>
                                     </button>
                                   )}
@@ -630,7 +810,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
           <div className="bg-white shadow-xl w-[95%] sm:w-[500px] md:max-w-2xl max-h-[90vh] overflow-y-auto mx-auto rounded-xl flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h3 className="text-[16px] font-semibold text-gray-900">
-                {isReadOnly ? 'View Member' : editingMember ? 'Edit Member' : 'Add New Member'}
+                {isReadOnly ? 'View Record' : editingMember ? 'Edit Record' : 'Add New Record'}
               </h3>
               <button 
                 onClick={() => setIsModalOpen(false)}
@@ -683,25 +863,24 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
               </div>
               
               <div>
-                <label className="block text-[13px] font-medium text-gray-700 mb-1">Category (Type)</label>
+                <label className="block text-[13px] font-medium text-gray-700 mb-1">Category (Role Type)</label>
                 <select 
                   value={formData.type}
                   onChange={(e) => setFormData({...formData, type: e.target.value})}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[14px] focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-gray-900 cursor-pointer disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed" disabled={isReadOnly}
                 >
-                  <option value="Officer">Main Organization Officer</option>
                   <option value="Staff">Center Staff</option>
+                  <option value="Officer">Main Organization Officer</option>
                   <option value="Volunteer">Volunteer</option>
-                  <option value="General Member">General Member</option>
+                  <option value="General Member">Organization Member</option>
                 </select>
               </div>
-
 
               {formData.type === 'Staff' && (
                 <div>
                   <label className="block text-[13px] font-medium text-gray-700 mb-1">Department</label>
                   <select 
-                    value={formData.department || availableDepts[0] || 'Operations'}
+                    value={formData.department || availableDepts[0] || 'Admin'}
                     onChange={(e) => setFormData({...formData, department: e.target.value})}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[14px] focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-gray-900 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed" disabled={isReadOnly}
                   >
@@ -713,14 +892,16 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
               )}
               
               <div>
-                <label className="block text-[13px] font-medium text-gray-700 mb-1">Specific Title / Role</label>
+                <label className="block text-[13px] font-medium text-gray-700 mb-1">
+                  {formData.type === 'Officer' ? 'Officer Position' : formData.type === 'Staff' ? 'Job Title' : 'Role / Focus'}
+                </label>
                 <input 
                   type="text" 
                   required
                   value={formData.role}
                   onChange={(e) => setFormData({...formData, role: e.target.value})}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[14px] focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-gray-900 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed" disabled={isReadOnly}
-                  placeholder="e.g. President, Imam, Admin"
+                  placeholder={formData.type === 'Officer' ? 'e.g. President, Vice President' : formData.type === 'Staff' ? 'e.g. Human Resources Officer' : 'e.g. Community Outreach'}
                 />
               </div>
 
@@ -728,7 +909,6 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                 <label className="block text-[13px] font-medium text-gray-700 mb-1">Phone Number</label>
                 <input 
                   type="text" 
-                  required
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[14px] focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-gray-900 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed" disabled={isReadOnly}
@@ -740,11 +920,10 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                 <label className="block text-[13px] font-medium text-gray-700 mb-1">Email Address</label>
                 <input 
                   type="email" 
-                  required
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[14px] focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all text-gray-900 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed" disabled={isReadOnly}
-                  placeholder="e.g. ahmad@example.com"
+                  placeholder="e.g. person@thegoodcompanion.net"
                 />
               </div>
             </form>
@@ -765,7 +944,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
                   className="px-4 py-2 text-[14px] font-semibold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all duration-200 ease-in-out hover:opacity-90 active:scale-[0.97] cursor-pointer flex items-center gap-2"
                 >
                   {isSubmittingMember && <Loader2 size={16} className="animate-spin" />}
-                  {editingMember ? 'Save Changes' : 'Save Member'}
+                  {editingMember ? 'Save Changes' : 'Save Record'}
                 </button>
               )}
             </div>
@@ -777,8 +956,8 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
         isOpen={memberToDelete !== null}
         onClose={() => setMemberToDelete(null)}
         onConfirm={confirmDelete}
-        title="Remove Member"
-        message="Are you sure you want to remove this member? This action cannot be undone."
+        title="Remove Record"
+        message="Are you sure you want to remove this record? This action cannot be undone."
         isDeleting={isDeletingMember}
       />
 
@@ -786,6 +965,7 @@ export default function Operations({ view, members, setMembers, tasks, setTasks 
         isOpen={isProvisionModalOpen}
         onClose={() => setIsProvisionModalOpen(false)}
         onSuccess={() => {
+          fetchDirectoryData();
           api.members.getAll().then(setMembers).catch(() => {});
         }}
       />
