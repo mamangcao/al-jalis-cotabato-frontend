@@ -190,6 +190,7 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
   const [isLoading, setIsLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [facilitators, setFacilitators] = useState<any[]>([]);
+  const [approvedDaeyahs, setApprovedDaeyahs] = useState<string[]>([]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -223,6 +224,14 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
       })
       .catch(err => {
         console.warn('Failed to fetch facilitators from personnel API:', err);
+      });
+
+    api.reverts.getApprovedDaeyahs()
+      .then(res => {
+        if (Array.isArray(res)) setApprovedDaeyahs(res);
+      })
+      .catch(err => {
+        console.warn('Failed to fetch approved daeyahs:', err);
       });
   }, []);
 
@@ -822,7 +831,21 @@ export default function Reverts({ reverts, setReverts, dateRange, members = [] }
                       </div>
                       <div>
                         <label className="block text-[13px] font-medium text-gray-600 mb-1">Da'eyah's Name (Preacher)</label>
-                        <input type="text" value={formData.daeyahName} onChange={e => setFormData({...formData, daeyahName: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white transition-all outline-hidden text-gray-900" placeholder="Name of Da'eyah" />
+                        <div className="relative">
+                          <input 
+                            type="text" 
+                            list="approved-daeyahs-list"
+                            value={formData.daeyahName} 
+                            onChange={e => setFormData({...formData, daeyahName: e.target.value})} 
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-orange-500 focus:bg-white transition-all outline-hidden text-gray-900" 
+                            placeholder="Select or enter Da'eyah name..." 
+                          />
+                          <datalist id="approved-daeyahs-list">
+                            {approvedDaeyahs.map(dName => (
+                              <option key={dName} value={dName} />
+                            ))}
+                          </datalist>
+                        </div>
                       </div>
 
                       <div className="md:col-span-2">

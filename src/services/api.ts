@@ -149,6 +149,7 @@ class ApiService {
       method: 'DELETE',
     }),
     getNextSerial: () => this.request<{ serialNumber: string }>('/reverts/next-serial'),
+    getApprovedDaeyahs: () => this.request<string[]>('/reverts/daeyahs'),
   };
 
   // ================= Personnel =================
